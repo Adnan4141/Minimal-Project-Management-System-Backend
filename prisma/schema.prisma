@@ -8,3 +8,285 @@ datasource db {
   provider = "postgresql"
 }
 
+// ============================================
+// Enums
+// ============================================
+
+enum UserRole {
+  Admin
+  Manager
+  Member
+}
+
+enum ProjectStatus {
+  planned
+  active
+  completed
+  archived
+}
+
+enum TaskStatus {
+  ToDo
+  InProgress
+  Review
+  Done
+}
+
+enum TaskPriority {
+  Low
+  Medium
+  High
+  Critical
+}
+
+enum ActivityType {
+  created
+  updated
+  status_changed
+  assigned
+  commented
+  attachment_added
+  time_logged
+  completed
+}
+
+// ============================================
+// User & Authentication
+// ============================================
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  password    String   // hashed password
+  name        String
+  role        UserRole @default(Member)
+  department  String?
+  skills      String[] // array of skills
+  avatar      String?  // optional profile picture URL
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  assignedTasks    TaskAssignment[]
+  createdProjects  Project[]         @relation("ProjectCreator")
+  managedProjects  Project[]         @relation("ProjectManager")
+  createdTasks     Task[]            @relation("TaskCreator")
+  createdSprints   Sprint[]
+  comments         Comment[]
+  timeLogs         TimeLog[]
+  activities       ActivityLog[]
+  attachments      Attachment[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// ============================================
+// Project Management
+// ============================================
+
+model Project {
+  id          String        @id @default(uuid())
+  title       String
+  client      String
+  description String?       @db.Text
+  startDate   DateTime
+  endDate     DateTime
+  budget      Decimal?      @db.Decimal(12, 2)
+  status      ProjectStatus @default(planned)
+  thumbnail   String?       // URL to thumbnail image
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  creatorId   String
+  creator     User          @relation("ProjectCreator", fields: [creatorId], references: [id])
+  managerId   String?
+  manager     User?         @relation("ProjectManager", fields: [managerId], references: [id])
+  sprints     Sprint[]
+
+  @@index([status])
+  @@index([client])
+  @@index([creatorId])
+  @@map("projects")
+}
+
+// ============================================
+// Sprint / Milestone Management
+// ============================================
+
+model Sprint {
+  id          String   @id @default(uuid())
+  title       String
+  sprintNumber Int     // auto-increment per project
+  startDate   DateTime
+  endDate     DateTime
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creatorId   String
+  creator     User     @relation(fields: [creatorId], references: [id])
+  tasks       Task[]
+
+  @@unique([projectId, sprintNumber]) // Ensure unique sprint numbers per project
+  @@index([projectId])
+  @@map("sprints")
+}
+
+// ============================================
+// Task Management
+// ============================================
+
+model Task {
+  id          String       @id @default(uuid())
+  title       String
+  description String?      @db.Text
+  estimate    Decimal?     @db.Decimal(8, 2) // hours estimate
+  priority    TaskPriority @default(Medium)
+  status      TaskStatus   @default(ToDo)
+  dueDate     DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relations
+  sprintId    String
+  sprint      Sprint       @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  creatorId   String
+  creator     User         @relation("TaskCreator", fields: [creatorId], references: [id])
+  parentTaskId String?
+  parentTask  Task?        @relation("TaskSubtasks", fields: [parentTaskId], references: [id])
+  subtasks    Task[]       @relation("TaskSubtasks")
+  assignees   TaskAssignment[]
+  comments    Comment[]
+  attachments Attachment[]
+  timeLogs    TimeLog[]
+  activities  ActivityLog[]
+
+  @@index([sprintId])
+  @@index([status])
+  @@index([priority])
+  @@index([parentTaskId])
+  @@map("tasks")
+}
+
+// ============================================
+// Task Assignments (Many-to-Many)
+// ============================================
+
+model TaskAssignment {
+  id        String   @id @default(uuid())
+  assignedAt DateTime @default(now())
+
+  // Relations
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId]) // A user can only be assigned once per task
+  @@index([taskId])
+  @@index([userId])
+  @@map("task_assignments")
+}
+
+// ============================================
+// Comments (Threaded)
+// ============================================
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentId  String?  // For threaded comments
+  parent    Comment? @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentThread")
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([parentId])
+  @@map("comments")
+}
+
+// ============================================
+// Attachments
+// ============================================
+
+model Attachment {
+  id          String   @id @default(uuid())
+  filename    String
+  fileUrl     String   // URL to stored file
+  fileType    String   // MIME type
+  fileSize    Int      // size in bytes
+  uploadedAt  DateTime @default(now())
+
+  // Relations
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedById String?
+  uploadedBy  User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@map("attachments")
+}
+
+// ============================================
+// Time Logging
+// ============================================
+
+model TimeLog {
+  id          String   @id @default(uuid())
+  hours       Decimal  @db.Decimal(8, 2)
+  description String?  @db.Text
+  loggedAt    DateTime @default(now())
+  date        DateTime // The date the work was done
+
+  // Relations
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([date])
+  @@map("time_logs")
+}
+
+// ============================================
+// Activity Log
+// ============================================
+
+model ActivityLog {
+  id          String       @id @default(uuid())
+  type        ActivityType
+  description String?      @db.Text
+  metadata    Json?        // Additional data in JSON format
+  createdAt   DateTime     @default(now())
+
+  // Relations
+  taskId      String?
+  task        Task?        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId   String?      // Optional: track project-level activities
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([projectId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
