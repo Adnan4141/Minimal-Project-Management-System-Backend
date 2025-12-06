@@ -31,12 +31,18 @@ app.use(express.urlencoded({ extended: true }))
 
 
 
-app.get('/api', (req, res) => {
+// Create API router with prefix
+const apiRouter = express.Router()
+mountRoutes(apiRouter)
+
+// Mount API routes with prefix
+const apiPrefix = config.server.apiPrefix || '/api'
+app.use(apiPrefix, apiRouter)
+
+// Health check endpoint
+app.get(apiPrefix, (req, res) => {
   res.json({ message: 'API Server working', version: '1.0.0' })
 })
-
-// Mount all routes from routes folder
-mountRoutes(app)
 
 // Error handling middleware 
 app.use(notFoundHandler)
@@ -47,4 +53,13 @@ const PORT = config.server.port || 5000;
 httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`)
   console.log(`📝 Environment: ${config.server.nodeEnv}`)
+}).on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use.`)
+    console.error(`   Please stop the process using this port or change the PORT in your .env file`)
+    process.exit(1)
+  } else {
+    console.error('❌ Server error:', err)
+    process.exit(1)
+  }
 })

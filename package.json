@@ -1,7 +1,7 @@
 {
-  "name": "multi-vendor-ecommerce-backend",
+  "name": "project-management-client-backend",
   "version": "1.0.0",
-  "description": "Backend API for multi-vendor ecommerce marketplace",
+  "description": "Backend API for Project Management System",
   "main": "src/server.ts",
   "type": "module",
   "scripts": {
