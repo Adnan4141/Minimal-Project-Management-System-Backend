@@ -1,7 +1,3 @@
-/**
- * Routes Index - Central management for all API routes
- */
-
 import { Router } from 'express'
 import authRoutes from './auth.routes'
 import userRoutes from './user.routes'
@@ -14,10 +10,7 @@ import reportsRoutes from './reports.routes'
 import attachmentRoutes from './attachment.routes'
 
 export function mountRoutes(router: Router): void {
-  // Authentication routes (public)
   router.use('/auth', authRoutes)
-
-  // Protected routes
   router.use('/users', userRoutes)
   router.use('/projects', projectRoutes)
   router.use('/sprints', sprintRoutes)

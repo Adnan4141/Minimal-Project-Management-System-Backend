@@ -10,9 +10,12 @@ import cookieParser from 'cookie-parser'
 import { config, validateEnv } from './config/env'
 import { errorHandler, notFoundHandler } from './middleware/error.middleware'
 import { mountRoutes } from './routes'
+import { logger } from './utils/logger'
+import { initializeEmailService } from './utils/email'
 
 
 validateEnv()
+initializeEmailService()
 
 const app = express()
 const httpServer = createServer(app)
@@ -27,6 +30,14 @@ app.use(cors({
 app.use(cookieParser())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+
+// Serve uploaded files statically
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+app.use(config.upload.publicUrl || '/uploads', express.static(path.join(__dirname, '..', config.upload.uploadPath || 'uploads')))
 
 
 
@@ -51,15 +62,15 @@ app.use(errorHandler)
 const PORT = config.server.port || 5000;
 
 httpServer.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`)
-  console.log(`📝 Environment: ${config.server.nodeEnv}`)
+  logger.info(`🚀 Server running on http://localhost:${PORT}`)
+  logger.info(`📝 Environment: ${config.server.nodeEnv}`)
 }).on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use.`)
-    console.error(`   Please stop the process using this port or change the PORT in your .env file`)
+    logger.error(`❌ Port ${PORT} is already in use.`)
+    logger.error(`   Please stop the process using this port or change the PORT in your .env file`)
     process.exit(1)
   } else {
-    console.error('❌ Server error:', err)
+    logger.error('❌ Server error:', err)
     process.exit(1)
   }
 })

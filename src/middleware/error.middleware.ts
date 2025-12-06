@@ -1,18 +1,14 @@
 import { Request, Response, NextFunction } from 'express'
+import { logger } from '../utils/logger'
 
-/**
- * 404 Not Found Handler
- */
 export function notFoundHandler(req: Request, res: Response, next: NextFunction) {
+  logger.warn(`404 Not Found: ${req.method} ${req.originalUrl}`)
   res.status(404).json({
     success: false,
     message: `Route ${req.originalUrl} not found`,
   })
 }
 
-/**
- * Global Error Handler
- */
 export function errorHandler(
   err: any,
   req: Request,
@@ -21,6 +17,19 @@ export function errorHandler(
 ) {
   const statusCode = err.statusCode || err.status || 500
   const message = err.message || 'Internal Server Error'
+
+  if (statusCode >= 500) {
+    logger.error(`Server Error [${statusCode}]: ${message}`, {
+      method: req.method,
+      url: req.originalUrl,
+      stack: err.stack,
+    })
+  } else {
+    logger.warn(`Client Error [${statusCode}]: ${message}`, {
+      method: req.method,
+      url: req.originalUrl,
+    })
+  }
 
   res.status(statusCode).json({
     success: false,

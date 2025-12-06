@@ -55,17 +55,19 @@ enum ActivityType {
 
 
 model User {
-  id          String   @id @default(uuid())
-  email       String   @unique
-  password    String   // hashed password
-  name        String
-  role        UserRole @default(Member)
-  department  String?
-  skills      String[] // array of skills
-  avatar      String?  // optional profile picture URL
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String    @id @default(uuid())
+  email             String    @unique
+  password          String    // hashed password
+  name              String
+  role              UserRole  @default(Member)
+  department        String?
+  skills            String[]  // array of skills
+  avatar            String?   // optional profile picture URL
+  isActive          Boolean   @default(true)
+  inviteToken       String?   // token for email invites
+  inviteTokenExpiry DateTime? // expiry date for invite token
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relations
   assignedTasks    TaskAssignment[]

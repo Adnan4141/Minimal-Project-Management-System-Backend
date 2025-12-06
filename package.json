@@ -16,12 +16,13 @@
     "lint": "eslint src --ext .ts",
     "type-check": "tsc --noEmit"
   },
- 
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@prisma/adapter-pg": "^7.0.1",
     "@prisma/client": "^7.0.1",
+    "@types/multer": "^2.0.0",
+    "@types/nodemailer": "^7.0.4",
     "@types/pg": "^8.15.6",
     "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
@@ -34,6 +35,8 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "multer": "^2.0.2",
+    "nodemailer": "^7.0.11",
     "pg": "^8.16.3",
     "redis": "^5.10.0",
     "socket.io": "^4.6.0",

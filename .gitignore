@@ -35,6 +35,9 @@ coverage/
 # Documentation/Notes (development files)
 CONTROLLER_BEST_PRACTICES.md
 *.md.backup
+PAGES_SUMMARY.md
+README_API_USAGE.md
+OAUTH_IMPLEMENTATION.md
 
 # Prisma generated files
 generated/

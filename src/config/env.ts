@@ -75,9 +75,20 @@ export const config = {
   jwt: {
     secret: getEnv('JWT_SECRET'),
     refreshSecret: getEnv('JWT_REFRESH_SECRET'),
-    accessTokenExpiry: getEnvOptional('JWT_ACCESS_EXPIRY', '15m'),
+    // Credentials login token expiration (email/password)
+    credentials: {
+      accessTokenExpiry: getEnvOptional('JWT_CREDENTIALS_ACCESS_EXPIRY', '20m'),
+      refreshTokenExpiry: getEnvOptional('JWT_CREDENTIALS_REFRESH_EXPIRY', '7d'),
+    },
+    // OAuth login token expiration (social login)
+    oauth: {
+      accessTokenExpiry: getEnvOptional('JWT_OAUTH_ACCESS_EXPIRY', '1h'),
+      refreshTokenExpiry: getEnvOptional('JWT_OAUTH_REFRESH_EXPIRY', '30d'),
+    },
+    // Legacy support (fallback if specific values not set)
+    accessTokenExpiry: getEnvOptional('JWT_ACCESS_EXPIRY', '30m'),
     refreshTokenExpiry: getEnvOptional('JWT_REFRESH_EXPIRY', '7d'),
-    cookieName: getEnvOptional('JWT_COOKIE_NAME', 'refreshToken'),
+    cookieName: getEnvOptional('JWT_COOKIE_NAME', 'refreshToken') || 'refreshToken',
   },
 
   // CORS Configuration
