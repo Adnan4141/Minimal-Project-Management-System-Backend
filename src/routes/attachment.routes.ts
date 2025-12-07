@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Router as ExpressRouter } from 'express'
 import {
   getTaskAttachments,
   uploadAttachment,
@@ -10,7 +10,7 @@ import { validate } from '../middleware/validation.middleware'
 import { getAttachmentSchema, getTaskAttachmentsSchema } from '../validations/attachment.validation'
 import { uploadSingle } from '../middleware/upload.middleware'
 
-const router = Router()
+const router: ExpressRouter = Router()
 
 router.use(authenticate)
 

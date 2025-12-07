@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Router as ExpressRouter } from 'express'
 import {
   getProjectProgress,
   getUserTimeSummary,
@@ -6,7 +6,7 @@ import {
 } from '../controllers/reports.controller'
 import { authenticate, requireAdminOrManager } from '../middleware/auth.middleware'
 
-const router = Router()
+const router: ExpressRouter = Router()
 
 router.use(authenticate)
 

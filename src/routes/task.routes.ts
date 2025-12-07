@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Router as ExpressRouter } from 'express'
 import {
   getTasks,
   getTaskById,
@@ -14,7 +14,7 @@ import {
   getTaskSchema,
 } from '../validations/task.validation'
 
-const router = Router()
+const router: ExpressRouter = Router()
 
 router.use(authenticate)
 

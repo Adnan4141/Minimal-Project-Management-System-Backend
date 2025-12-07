@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Router as ExpressRouter } from 'express'
 import {
   register,
   login,
@@ -20,7 +20,7 @@ import {
 } from '../validations/auth.validation'
 import { acceptInviteSchema } from '../validations/user.validation'
 
-const router = Router()
+const router: ExpressRouter = Router()
 
 router.post('/register', validate(registerSchema), register)
 router.post('/login', validate(loginSchema), login)

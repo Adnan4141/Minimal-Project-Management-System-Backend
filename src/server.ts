@@ -6,11 +6,11 @@ import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import cookieParser from 'cookie-parser'
-import { config, validateEnv } from './config/env'
-import { errorHandler, notFoundHandler } from './middleware/error.middleware'
-import { mountRoutes } from './routes'
-import { logger } from './utils/logger'
-import { initializeEmailService } from './utils/email'
+import { config, validateEnv } from './config/env.js'
+import { errorHandler, notFoundHandler } from './middleware/error.middleware.js'
+import { mountRoutes } from './routes/index.js'
+import { logger } from './utils/logger.js'
+import { initializeEmailService } from './utils/email.js'
 
 
 validateEnv()
@@ -52,18 +52,22 @@ app.get(apiPrefix, (req, res) => {
 app.use(notFoundHandler)
 app.use(errorHandler)
 
-const PORT = config.server.port || 5000;
+const PORT = config.server.port || 4000;
 
-httpServer.listen(PORT, () => {
-  logger.info(`🚀 Server running on http://localhost:${PORT}`)
-  logger.info(`📝 Environment: ${config.server.nodeEnv}`)
-}).on('error', (err: NodeJS.ErrnoException) => {
-  if (err.code === 'EADDRINUSE') {
-    logger.error(`❌ Port ${PORT} is already in use.`)
-    logger.error(`   Please stop the process using this port or change the PORT in your .env file`)
-    process.exit(1)
-  } else {
-    logger.error('❌ Server error:', err)
-    process.exit(1)
-  }
-})
+if (!process.env.VERCEL) {
+  httpServer.listen(PORT, () => {
+    logger.info(`🚀 Server running on http://localhost:${PORT}`)
+    logger.info(`📝 Environment: ${config.server.nodeEnv}`)
+  }).on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      logger.error(`❌ Port ${PORT} is already in use.`)
+      logger.error(`   Please stop the process using this port or change the PORT in your .env file`)
+      process.exit(1)
+    } else {
+      logger.error('❌ Server error:', err)
+      process.exit(1)
+    }
+  })
+}
+
+export default app

@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Router as ExpressRouter } from 'express'
 import {
   getTaskComments,
   createComment,
@@ -12,7 +12,7 @@ import {
   getCommentSchema,
 } from '../validations/comment.validation'
 
-const router = Router()
+const router: ExpressRouter = Router()
 
 router.use(authenticate)
 

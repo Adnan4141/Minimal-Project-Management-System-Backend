@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Router as ExpressRouter } from 'express'
 import {
   getUsers,
   getUserById,
@@ -21,7 +21,7 @@ import {
 } from '../validations/user.validation'
 import { uploadSingle } from '../middleware/upload.middleware'
 
-const router = Router()
+const router: ExpressRouter = Router()
 
 router.use(authenticate)
 

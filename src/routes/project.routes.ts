@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Router as ExpressRouter } from 'express'
 import {
   getProjects,
   getProjectById,
@@ -14,7 +14,7 @@ import {
   getProjectSchema,
 } from '../validations/project.validation'
 
-const router = Router()
+const router: ExpressRouter = Router()
 
 router.use(authenticate)
 

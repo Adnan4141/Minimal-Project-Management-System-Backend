@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Router as ExpressRouter } from 'express'
 import {
   getSprints,
   getSprintById,
@@ -14,7 +14,7 @@ import {
   getSprintSchema,
 } from '../validations/sprint.validation'
 
-const router = Router()
+const router: ExpressRouter = Router()
 
 router.use(authenticate)
 

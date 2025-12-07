@@ -41,3 +41,4 @@ OAUTH_IMPLEMENTATION.md
 
 # Prisma generated files
 generated/
+.vercel

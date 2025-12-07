@@ -1,13 +1,13 @@
 import { Router } from 'express'
-import authRoutes from './auth.routes'
-import userRoutes from './user.routes'
-import projectRoutes from './project.routes'
-import sprintRoutes from './sprint.routes'
-import taskRoutes from './task.routes'
-import commentRoutes from './comment.routes'
-import timelogRoutes from './timelog.routes'
-import reportsRoutes from './reports.routes'
-import attachmentRoutes from './attachment.routes'
+import authRoutes from './auth.routes.js'
+import userRoutes from './user.routes.js'
+import projectRoutes from './project.routes.js'
+import sprintRoutes from './sprint.routes.js'
+import taskRoutes from './task.routes.js'
+import commentRoutes from './comment.routes.js'
+import timelogRoutes from './timelog.routes.js'
+import reportsRoutes from './reports.routes.js'
+import attachmentRoutes from './attachment.routes.js'
 
 export function mountRoutes(router: Router): void {
   router.use('/auth', authRoutes)

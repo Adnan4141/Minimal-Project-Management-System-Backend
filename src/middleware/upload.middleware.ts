@@ -1,4 +1,5 @@
 import multer from 'multer'
+import type { RequestHandler } from 'express'
 import { config } from '../config/env'
 
 const storage = multer.memoryStorage()
@@ -29,8 +30,8 @@ export const upload = multer({
   },
 })
 
-export const uploadSingle = upload.single('file')
+export const uploadSingle: RequestHandler = upload.single('file')
 
-export const uploadMultiple = upload.array('files', 10)
+export const uploadMultiple: RequestHandler = upload.array('files', 10)
 
 

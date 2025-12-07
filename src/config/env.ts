@@ -54,7 +54,7 @@ export function validateEnv() {
 
 export const config = {
   server: {
-    port: getEnvNumber('PORT', 5000),
+    port: getEnvNumber('PORT', 4000),
     nodeEnv: getEnvOptional('NODE_ENV', 'development') as 'development' | 'production' | 'test',
     apiPrefix: getEnvOptional('API_PREFIX', '/api'),
   },
@@ -101,16 +101,22 @@ export const config = {
   email: {
     enabled: getEnvBoolean('EMAIL_ENABLED', false),
     service: getEnvOptional('EMAIL_SERVICE', 'gmail'),
-    host: getEnvOptional('EMAIL_HOST', 'smtp.gmail.com'),
-    port: getEnvNumber('EMAIL_PORT', 465),
-    secure: getEnvBoolean('EMAIL_SECURE', true),
+    host: getEnvOptional('EMAIL_HOST'),
+    port: getEnvNumber('EMAIL_PORT', 587),
+    secure: getEnvBoolean('EMAIL_SECURE', false),
     user: getEnvOptional('EMAIL_USER'),
     password: getEnvOptional('EMAIL_PASSWORD'),
     from: getEnvOptional('EMAIL_FROM', 'noreply@mpms.com'),
     fromName: getEnvOptional('EMAIL_FROM_NAME', 'MPMS System'),
   },
 
-
+  redis: {
+    enabled: getEnvBoolean('REDIS_ENABLED', false),
+    url: getEnvOptional('REDIS_URL', 'redis://localhost:6379'),
+    host: getEnvOptional('REDIS_HOST', 'localhost'),
+    port: getEnvNumber('REDIS_PORT', 6379),
+    password: getEnvOptional('REDIS_PASSWORD'),
+  },
 
   security: {
     bcryptRounds: getEnvNumber('BCRYPT_ROUNDS', 10),
