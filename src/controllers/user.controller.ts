@@ -580,8 +580,8 @@ export async function getTeamMemberStats(req: AuthRequest, res: Response<ApiResp
         })
 
         const total = tasks.length
-        const completed = tasks.filter((t) => t.status === 'Done').length
-        const inProgress = tasks.filter((t) => t.status === 'InProgress').length
+        const completed = tasks.filter((t: { id: string; status: string }) => t.status === 'Done').length
+        const inProgress = tasks.filter((t: { id: string; status: string }) => t.status === 'InProgress').length
 
         return {
           total,
@@ -594,7 +594,7 @@ export async function getTeamMemberStats(req: AuthRequest, res: Response<ApiResp
       prisma.task.findMany({
         where: { creatorId: id },
         select: { id: true },
-      }).then(async (createdTasks) => {
+      }).then(async (createdTasks: Array<{ id: string }>) => {
         const created = createdTasks.length
         const managed = await prisma.project.count({
           where: { managerId: id },
@@ -616,15 +616,15 @@ export async function getTeamMemberStats(req: AuthRequest, res: Response<ApiResp
           include: { sprint: { include: { project: true } } },
         })
 
-        const totalHours = logs.reduce((sum, log) => sum + Number(log._sum.hours || 0), 0)
-        const byProject = tasks.reduce((acc, task) => {
+        const totalHours = logs.reduce((sum: number, log) => sum + Number(log._sum.hours || 0), 0)
+        const byProject = tasks.reduce((acc: Array<{ projectId: string; projectTitle: string; hours: number }>, task: { id: string; sprint?: { project?: { id: string; title: string } | null } | null }) => {
           const projectId = task.sprint?.project?.id || 'unknown'
           const projectTitle = task.sprint?.project?.title || 'Unknown Project'
           const hours = Number(
             logs.find((l) => l.taskId === task.id)?._sum.hours || 0
           )
 
-          const existing = acc.find((p) => p.projectId === projectId)
+          const existing = acc.find((p: { projectId: string; projectTitle: string; hours: number }) => p.projectId === projectId)
           if (existing) {
             existing.hours += hours
           } else {
@@ -652,8 +652,34 @@ export async function getTeamMemberStats(req: AuthRequest, res: Response<ApiResp
             },
           },
         },
-      }).then((assignments) =>
-        assignments.map((a) => ({
+      }).then((assignments: Array<{
+        task: {
+          id: string
+          title: string
+          status: string
+          priority: string
+          sprint?: {
+            id: string
+            title: string
+            project?: { id: string; title: string } | null
+          } | null
+        }
+        assignedAt: Date
+      }>) =>
+        assignments.map((a: {
+          task: {
+            id: string
+            title: string
+            status: string
+            priority: string
+            sprint?: {
+              id: string
+              title: string
+              project?: { id: string; title: string } | null
+            } | null
+          }
+          assignedAt: Date
+        }) => ({
           id: a.task.id,
           title: a.task.title,
           status: a.task.status,
@@ -670,8 +696,20 @@ export async function getTeamMemberStats(req: AuthRequest, res: Response<ApiResp
         include: {
           task: { select: { id: true, title: true } },
         },
-      }).then((activities) =>
-        activities.map((a) => ({
+      }).then((activities: Array<{
+        id: string
+        type: string
+        description: string | null
+        task?: { id: string; title: string } | null
+        createdAt: Date
+      }>) =>
+        activities.map((a: {
+          id: string
+          type: string
+          description: string | null
+          task?: { id: string; title: string } | null
+          createdAt: Date
+        }) => ({
           id: a.id,
           type: a.type,
           description: a.description || '',
