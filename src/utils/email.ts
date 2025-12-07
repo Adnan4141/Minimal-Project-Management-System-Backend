@@ -16,10 +16,9 @@ export function initializeEmailService() {
   }
 
   transporter = nodemailer.createTransport({
-    service: config.email.service === 'gmail' ? 'gmail' : undefined,
-    host: config.email.service !== 'gmail' ? config.email.host : undefined,
-    port: config.email.port,
-    secure: config.email.secure,
+    host: config.email.host || 'smtp.gmail.com',
+    port: config.email.port || 465,
+    secure: config.email.secure !== false,
     auth: {
       user: config.email.user,
       pass: config.email.password,
