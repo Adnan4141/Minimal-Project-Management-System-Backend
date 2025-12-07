@@ -349,6 +349,22 @@ export async function createTask(req: AuthRequest, res: Response<ApiResponse>) {
 
 
     if (data.assigneeIds && data.assigneeIds.length > 0) {
+      if (req.user?.role === 'Manager') {
+        const assigneeUsers = await prisma.user.findMany({
+          where: { id: { in: data.assigneeIds } },
+          select: { id: true, role: true },
+        })
+
+        const hasAdmin = assigneeUsers.some((user) => user.role === 'Admin')
+        if (hasAdmin) {
+          await prisma.task.delete({ where: { id: task.id } })
+          return res.status(403).json({
+            success: false,
+            message: 'Managers cannot assign tasks to Administrators',
+          })
+        }
+      }
+
       await prisma.taskAssignment.createMany({
         data: data.assigneeIds.map((userId) => ({
           taskId: task.id,
@@ -499,6 +515,20 @@ export async function updateTask(req: AuthRequest, res: Response<ApiResponse>) {
 
 
     if (data.assigneeIds) {
+      if (req.user?.role === 'Manager') {
+        const assigneeUsers = await prisma.user.findMany({
+          where: { id: { in: data.assigneeIds } },
+          select: { id: true, role: true },
+        })
+
+        const hasAdmin = assigneeUsers.some((user) => user.role === 'Admin')
+        if (hasAdmin) {
+          return res.status(403).json({
+            success: false,
+            message: 'Managers cannot assign tasks to Administrators',
+          })
+        }
+      }
 
       await prisma.taskAssignment.deleteMany({
         where: { taskId: id },
