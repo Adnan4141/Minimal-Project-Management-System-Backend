@@ -8,14 +8,10 @@ import { UserRole } from '../../generated/prisma/enums.js'
 import { handleOAuth } from '../services/auth.service'
 import { logger } from '../utils/logger'
 
-/**
- * Parse expiry string (e.g., '15m', '1h', '7d') to milliseconds
- * Supports: s (seconds), m (minutes), h (hours), d (days)
- */
 function parseExpiryToMs(expiry: string): number {
   const match = expiry.match(/^(\d+)([smhd])$/)
   if (!match) {
-    // Default to 7 days if format is invalid
+
     return 7 * 24 * 60 * 60 * 1000
   }
 
@@ -57,6 +53,7 @@ export async function register(req: AuthRequest, res: Response<ApiResponse>) {
         role: data.role || UserRole.Member,
         department: data.department,
         skills: data.skills || [],
+        isActive: false,
       },
       select: {
         id: true,
@@ -66,39 +63,17 @@ export async function register(req: AuthRequest, res: Response<ApiResponse>) {
         department: true,
         skills: true,
         avatar: true,
+        isActive: true,
         createdAt: true,
       },
     })
 
-    const tokenPayload = {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      name: user.name,
-    }
-
-    // Use 'credentials' method for registration
-    const accessToken = generateAccessToken(tokenPayload, 'credentials')
-    const refreshToken = generateRefreshToken(tokenPayload, 'credentials')
-
-    // Calculate maxAge from refresh token expiry (default 7 days)
-    const refreshExpiry = config.jwt.credentials.refreshTokenExpiry || config.jwt.refreshTokenExpiry || '7d'
-    const maxAge = parseExpiryToMs(refreshExpiry)
-
-    // Set refresh token in HTTP-only cookie
-    res.cookie(config.jwt.cookieName, refreshToken, {
-      httpOnly: true,
-      secure: config.server.nodeEnv === 'production',
-      sameSite: 'strict',
-      maxAge,
-    })
-
     return res.status(201).json({
       success: true,
-      message: 'User registered successfully',
+      message: 'Registration successful. Your account is pending activation by an administrator.',
       data: {
         user,
-        accessToken,
+        requiresActivation: true,
       },
     })
   } catch (error: any) {
@@ -110,14 +85,11 @@ export async function register(req: AuthRequest, res: Response<ApiResponse>) {
   }
 }
 
-/**
- * Login user
- */
 export async function login(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const credentials: LoginCredentials = req.body
 
-    // Find user
+
     const user = await prisma.user.findUnique({
       where: { email: credentials.email },
     })
@@ -152,11 +124,11 @@ export async function login(req: AuthRequest, res: Response<ApiResponse>) {
       name: user.name,
     }
 
-    // Use 'credentials' method for email/password login
+
     const accessToken = generateAccessToken(tokenPayload, 'credentials')
     const refreshToken = generateRefreshToken(tokenPayload, 'credentials')
 
-    // Calculate maxAge from refresh token expiry
+
     const refreshExpiry = config.jwt.credentials.refreshTokenExpiry || config.jwt.refreshTokenExpiry || '7d'
     const maxAge = parseExpiryToMs(refreshExpiry)
 
@@ -231,7 +203,7 @@ export async function refreshToken(req: AuthRequest, res: Response<ApiResponse>)
       name: user.name,
     }
 
-    // Use 'credentials' method for token refresh (maintains original method)
+
     const accessToken = generateAccessToken(tokenPayload, 'credentials')
 
     return res.json({
@@ -295,6 +267,71 @@ export async function getMe(req: AuthRequest, res: Response<ApiResponse>) {
   }
 }
 
+export async function changePassword(req: AuthRequest, res: Response<ApiResponse>) {
+  try {
+    const { currentPassword, newPassword } = req.body
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password and new password are required',
+      })
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long',
+      })
+    }
+
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authenticated',
+      })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+    })
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      })
+    }
+
+    const isPasswordValid = await comparePassword(currentPassword, user.password)
+
+    if (!isPasswordValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is incorrect',
+      })
+    }
+
+    const hashedPassword = await hashPassword(newPassword)
+
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { password: hashedPassword },
+    })
+
+    return res.json({
+      success: true,
+      message: 'Password changed successfully',
+    })
+  } catch (error: any) {
+    logger.error('Failed to change password', error)
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to change password',
+    })
+  }
+}
+
 export async function logout(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     res.clearCookie(config.jwt.cookieName, {
@@ -350,7 +387,7 @@ export async function oauth(req: AuthRequest, res: Response<ApiResponse>) {
       userIp
     )
 
-    // Calculate maxAge from OAuth refresh token expiry (default 30 days)
+
     const refreshExpiry = config.jwt.oauth.refreshTokenExpiry || config.jwt.refreshTokenExpiry || '30d'
     const maxAge = parseExpiryToMs(refreshExpiry)
 
@@ -434,11 +471,11 @@ export async function acceptInvite(req: AuthRequest, res: Response<ApiResponse>)
       name: updatedUser.name,
     }
 
-    // Use 'credentials' method for invite acceptance
+
     const accessToken = generateAccessToken(tokenPayload, 'credentials')
     const refreshToken = generateRefreshToken(tokenPayload, 'credentials')
 
-    // Calculate maxAge from refresh token expiry
+
     const refreshExpiry = config.jwt.credentials.refreshTokenExpiry || config.jwt.refreshTokenExpiry || '7d'
     const maxAge = parseExpiryToMs(refreshExpiry)
 

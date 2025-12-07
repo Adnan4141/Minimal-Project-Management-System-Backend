@@ -1,7 +1,3 @@
-/**
- * Password Utilities
- */
-
 import bcrypt from 'bcryptjs'
 import { config } from '../config/env'
 

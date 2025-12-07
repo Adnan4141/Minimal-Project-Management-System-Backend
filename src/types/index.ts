@@ -1,11 +1,6 @@
-/**
- * TypeScript types and interfaces
- */
-
 import { Request } from 'express'
 import { UserRole, ProjectStatus, TaskStatus, TaskPriority } from '../../generated/prisma/enums.js'
 
-// Extended Express Request with user info
 export interface AuthRequest extends Request {
   user?: {
     id: string
@@ -15,7 +10,6 @@ export interface AuthRequest extends Request {
   }
 }
 
-// Auth Types
 export interface LoginCredentials {
   email: string
   password: string
@@ -36,7 +30,6 @@ export interface TokenPayload {
   role: UserRole
 }
 
-// Project Types
 export interface CreateProjectData {
   title: string
   client: string
@@ -53,7 +46,6 @@ export interface UpdateProjectData extends Partial<CreateProjectData> {
   id: string
 }
 
-// Sprint Types
 export interface CreateSprintData {
   title: string
   startDate: string | Date
@@ -66,7 +58,6 @@ export interface UpdateSprintData extends Partial<CreateSprintData> {
   id: string
 }
 
-// Task Types
 export interface CreateTaskData {
   title: string
   description?: string
@@ -92,14 +83,12 @@ export interface TaskFilters {
   search?: string
 }
 
-// Comment Types
 export interface CreateCommentData {
   content: string
   taskId: string
   parentId?: string
 }
 
-// Time Log Types
 export interface CreateTimeLogData {
   hours: number
   description?: string
@@ -107,7 +96,6 @@ export interface CreateTimeLogData {
   taskId: string
 }
 
-// User/Team Types
 export interface CreateUserData {
   email: string
   password?: string
@@ -118,10 +106,11 @@ export interface CreateUserData {
 }
 
 export interface UpdateUserData extends Partial<CreateUserData> {
-  id: string
+  id?: string
+  isActive?: boolean
+  avatar?: string
 }
 
-// Report Types
 export interface ProjectProgress {
   projectId: string
   totalTasks: number
@@ -142,12 +131,12 @@ export interface UserTimeSummary {
   }>
 }
 
-// API Response Types
 export interface ApiResponse<T = any> {
   success: boolean
   message?: string
   data?: T
   error?: string | Array<{ path: string; message: string }>
+  requiresActivation?: boolean
 }
 
 export interface PaginatedResponse<T> {

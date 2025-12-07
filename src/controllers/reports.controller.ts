@@ -1,20 +1,14 @@
-/**
- * Reports Controller
- */
 
 import { Response } from 'express'
 import { AuthRequest, ApiResponse, ProjectProgress, UserTimeSummary } from '../types'
 import { prisma } from '../prisma/client'
 import { logger } from '../utils/logger'
 
-/**
- * Get project progress report
- */
 export async function getProjectProgress(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { projectId } = req.params
 
-    // Verify project exists
+
     const project = await prisma.project.findUnique({
       where: { id: projectId },
     })
@@ -26,7 +20,7 @@ export async function getProjectProgress(req: AuthRequest, res: Response<ApiResp
       })
     }
 
-    // Get all tasks for the project
+
     const tasks = await prisma.task.findMany({
       where: {
         sprint: {
@@ -40,7 +34,7 @@ export async function getProjectProgress(req: AuthRequest, res: Response<ApiResp
       },
     })
 
-    // Get time logs for all tasks in the project
+
     const timeLogs = await prisma.timeLog.findMany({
       where: {
         task: {
@@ -84,9 +78,6 @@ export async function getProjectProgress(req: AuthRequest, res: Response<ApiResp
   }
 }
 
-/**
- * Get user time summary
- */
 export async function getUserTimeSummary(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const userId = req.query.userId as string | undefined
@@ -100,7 +91,7 @@ export async function getUserTimeSummary(req: AuthRequest, res: Response<ApiResp
       })
     }
 
-    // Users can only see their own summary unless Admin/Manager
+
     if (targetUserId !== req.user?.id && req.user?.role !== 'Admin' && req.user?.role !== 'Manager') {
       return res.status(403).json({
         success: false,
@@ -144,7 +135,7 @@ export async function getUserTimeSummary(req: AuthRequest, res: Response<ApiResp
     const uniqueTasks = new Set(timeLogs.map((log) => log.taskId))
     const tasksWorked = uniqueTasks.size
 
-    // Group by project
+
     const projectHours: Record<string, number> = {}
     timeLogs.forEach((log) => {
       const projId = log.task.sprint.project.id
@@ -179,9 +170,6 @@ export async function getUserTimeSummary(req: AuthRequest, res: Response<ApiResp
   }
 }
 
-/**
- * Get dashboard stats (Admin/Manager only)
- */
 export async function getDashboardStats(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const [totalProjects, totalUsers, totalTasks, totalTimeLogged] = await Promise.all([

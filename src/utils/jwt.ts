@@ -1,19 +1,9 @@
-/**
- * JWT Token Utilities
- */
-
 import jwt, { SignOptions } from 'jsonwebtoken'
 import { config } from '../config/env'
 import { TokenPayload } from '../types'
 
 export type AuthMethod = 'credentials' | 'oauth'
 
-/**
- * Generate access token with custom expiration
- * @param payload - Token payload
- * @param method - Authentication method ('credentials' or 'oauth')
- * @param customExpiry - Optional custom expiration time (overrides method-specific expiry)
- */
 export function generateAccessToken(
   payload: TokenPayload & { name?: string },
   method: AuthMethod = 'credentials',
@@ -32,12 +22,6 @@ export function generateAccessToken(
   return jwt.sign(payload, config.jwt.secret as string, options)
 }
 
-/**
- * Generate refresh token with custom expiration
- * @param payload - Token payload
- * @param method - Authentication method ('credentials' or 'oauth')
- * @param customExpiry - Optional custom expiration time (overrides method-specific expiry)
- */
 export function generateRefreshToken(
   payload: TokenPayload & { name?: string },
   method: AuthMethod = 'credentials',

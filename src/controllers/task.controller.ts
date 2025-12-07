@@ -1,6 +1,3 @@
-/**
- * Task Controller
- */
 
 import { Response } from 'express'
 import { AuthRequest, ApiResponse, CreateTaskData, UpdateTaskData, TaskFilters } from '../types'
@@ -8,9 +5,6 @@ import { prisma } from '../prisma/client'
 import { TaskStatus, TaskPriority } from '../../generated/prisma/enums.js'
 import { logger } from '../utils/logger'
 
-/**
- * Get all tasks with filters
- */
 export async function getTasks(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const page = parseInt(req.query.page as string) || 1
@@ -61,7 +55,7 @@ export async function getTasks(req: AuthRequest, res: Response<ApiResponse>) {
       ]
     }
 
-    // If user is not Admin, only show tasks they're assigned to or created
+
     if (req.user?.role !== 'Admin' && req.user?.role !== 'Manager') {
       where.OR = [
         { creatorId: req.user?.id },
@@ -160,9 +154,6 @@ export async function getTasks(req: AuthRequest, res: Response<ApiResponse>) {
   }
 }
 
-/**
- * Get task by ID
- */
 export async function getTaskById(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
@@ -284,7 +275,7 @@ export async function getTaskById(req: AuthRequest, res: Response<ApiResponse>) 
       })
     }
 
-    // Check access permissions
+
     if (req.user?.role !== 'Admin' && req.user?.role !== 'Manager') {
       const hasAccess =
         task.creatorId === req.user?.id ||
@@ -311,14 +302,11 @@ export async function getTaskById(req: AuthRequest, res: Response<ApiResponse>) 
   }
 }
 
-/**
- * Create task
- */
 export async function createTask(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const data: CreateTaskData = req.body
 
-    // Verify sprint exists
+
     const sprint = await prisma.sprint.findUnique({
       where: { id: data.sprintId },
     })
@@ -330,7 +318,7 @@ export async function createTask(req: AuthRequest, res: Response<ApiResponse>) {
       })
     }
 
-    // Create task
+
     const task = await prisma.task.create({
       data: {
         title: data.title,
@@ -359,7 +347,7 @@ export async function createTask(req: AuthRequest, res: Response<ApiResponse>) {
       },
     })
 
-    // Assign users if provided
+
     if (data.assigneeIds && data.assigneeIds.length > 0) {
       await prisma.taskAssignment.createMany({
         data: data.assigneeIds.map((userId) => ({
@@ -369,7 +357,7 @@ export async function createTask(req: AuthRequest, res: Response<ApiResponse>) {
       })
     }
 
-    // Create activity log
+
     await prisma.activityLog.create({
       data: {
         type: 'created',
@@ -379,7 +367,7 @@ export async function createTask(req: AuthRequest, res: Response<ApiResponse>) {
       },
     })
 
-    // Fetch full task with assignees
+
     const fullTask = await prisma.task.findUnique({
       where: { id: task.id },
       include: {
@@ -411,9 +399,6 @@ export async function createTask(req: AuthRequest, res: Response<ApiResponse>) {
   }
 }
 
-/**
- * Update task
- */
 export async function updateTask(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
@@ -430,7 +415,7 @@ export async function updateTask(req: AuthRequest, res: Response<ApiResponse>) {
       })
     }
 
-    // Check permissions
+
     if (req.user?.role !== 'Admin' && req.user?.role !== 'Manager') {
       const hasAccess =
         existingTask.creatorId === req.user?.id ||
@@ -456,9 +441,9 @@ export async function updateTask(req: AuthRequest, res: Response<ApiResponse>) {
     if (data.priority) updateData.priority = data.priority
     if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null
 
-    // Handle status change with Review workflow
+
     if (data.status && data.status !== existingTask.status) {
-      // Workflow: Review → Done requires Manager/Admin approval
+
       if (data.status === 'Done' && existingTask.status === 'Review') {
         if (req.user?.role !== 'Admin' && req.user?.role !== 'Manager') {
           return res.status(403).json({
@@ -467,7 +452,7 @@ export async function updateTask(req: AuthRequest, res: Response<ApiResponse>) {
           })
         }
       }
-      // Members can move tasks to Review, but not directly to Done
+
       else if (data.status === 'Done' && existingTask.status !== 'Review') {
         if (req.user?.role !== 'Admin' && req.user?.role !== 'Manager') {
           return res.status(400).json({
@@ -479,7 +464,7 @@ export async function updateTask(req: AuthRequest, res: Response<ApiResponse>) {
 
       updateData.status = data.status
 
-      // Create activity log for status change
+
       await prisma.activityLog.create({
         data: {
           type: 'status_changed',
@@ -512,14 +497,14 @@ export async function updateTask(req: AuthRequest, res: Response<ApiResponse>) {
       },
     })
 
-    // Update assignees if provided
+
     if (data.assigneeIds) {
-      // Remove existing assignments
+
       await prisma.taskAssignment.deleteMany({
         where: { taskId: id },
       })
 
-      // Create new assignments
+
       if (data.assigneeIds.length > 0) {
         await prisma.taskAssignment.createMany({
           data: data.assigneeIds.map((userId) => ({
@@ -528,7 +513,7 @@ export async function updateTask(req: AuthRequest, res: Response<ApiResponse>) {
           })),
         })
 
-        // Create activity log
+
         await prisma.activityLog.create({
           data: {
             type: 'assigned',
@@ -554,9 +539,6 @@ export async function updateTask(req: AuthRequest, res: Response<ApiResponse>) {
   }
 }
 
-/**
- * Delete task
- */
 export async function deleteTask(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
@@ -572,7 +554,7 @@ export async function deleteTask(req: AuthRequest, res: Response<ApiResponse>) {
       })
     }
 
-    // Only Admin, Manager, or creator can delete
+
     if (
       req.user?.role !== 'Admin' &&
       req.user?.role !== 'Manager' &&

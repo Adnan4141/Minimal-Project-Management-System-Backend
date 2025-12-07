@@ -1,8 +1,3 @@
-/**
- * OAuth Token Verification Utilities
- * Verifies tokens from OAuth providers before processing
- */
-
 import { OAuth2Client } from 'google-auth-library'
 import axios from 'axios'
 import { config } from '../config/env'
@@ -21,9 +16,6 @@ export interface FacebookUserInfo {
   emailVerified: boolean
 }
 
-/**
- * Verify Google ID token and extract user info
- */
 export async function verifyGoogleToken(idToken: string): Promise<GoogleUserInfo> {
   if (!config.oauth.google.clientId) {
     throw new Error('Google OAuth is not configured')
@@ -62,16 +54,12 @@ export async function verifyGoogleToken(idToken: string): Promise<GoogleUserInfo
   }
 }
 
-/**
- * Verify Facebook access token and extract user info
- */
 export async function verifyFacebookToken(accessToken: string): Promise<FacebookUserInfo> {
   if (!config.oauth.facebook.appId || !config.oauth.facebook.appSecret) {
     throw new Error('Facebook OAuth is not configured')
   }
 
   try {
-    // First, verify the token
     const debugResponse = await axios.get(
       `https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${config.oauth.facebook.appId}|${config.oauth.facebook.appSecret}`
     )
@@ -82,7 +70,6 @@ export async function verifyFacebookToken(accessToken: string): Promise<Facebook
 
     const userId = debugResponse.data.data.user_id
 
-    // Get user info from Facebook
     const userInfoResponse = await axios.get(
       `https://graph.facebook.com/${userId}?fields=id,name,email,picture&access_token=${accessToken}`
     )
@@ -101,7 +88,7 @@ export async function verifyFacebookToken(accessToken: string): Promise<Facebook
       email,
       name,
       picture: picture?.data?.url,
-      emailVerified: true, // Facebook emails are verified
+      emailVerified: true,
     }
   } catch (error: any) {
     if (error.response) {
@@ -110,6 +97,7 @@ export async function verifyFacebookToken(accessToken: string): Promise<Facebook
     throw new Error(`Facebook token verification failed: ${error.message}`)
   }
 }
+
 
 
 

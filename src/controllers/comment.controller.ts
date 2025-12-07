@@ -1,15 +1,9 @@
-/**
- * Comment Controller
- */
 
 import { Response } from 'express'
 import { AuthRequest, ApiResponse, CreateCommentData } from '../types'
 import { prisma } from '../prisma/client'
 import { logger } from '../utils/logger'
 
-/**
- * Get comments for a task
- */
 export async function getTaskComments(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { taskId } = req.params
@@ -58,14 +52,11 @@ export async function getTaskComments(req: AuthRequest, res: Response<ApiRespons
   }
 }
 
-/**
- * Create comment
- */
 export async function createComment(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const data: CreateCommentData = req.body
 
-    // Verify task exists
+
     const task = await prisma.task.findUnique({
       where: { id: data.taskId },
     })
@@ -77,7 +68,7 @@ export async function createComment(req: AuthRequest, res: Response<ApiResponse>
       })
     }
 
-    // If parent comment, verify it exists
+
     if (data.parentId) {
       const parentComment = await prisma.comment.findUnique({
         where: { id: data.parentId },
@@ -124,7 +115,7 @@ export async function createComment(req: AuthRequest, res: Response<ApiResponse>
       },
     })
 
-    // Create activity log
+
     await prisma.activityLog.create({
       data: {
         type: 'commented',
@@ -148,9 +139,6 @@ export async function createComment(req: AuthRequest, res: Response<ApiResponse>
   }
 }
 
-/**
- * Update comment
- */
 export async function updateComment(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
@@ -167,7 +155,7 @@ export async function updateComment(req: AuthRequest, res: Response<ApiResponse>
       })
     }
 
-    // Only the comment author can update
+
     if (comment.userId !== req.user?.id && req.user?.role !== 'Admin') {
       return res.status(403).json({
         success: false,
@@ -204,9 +192,6 @@ export async function updateComment(req: AuthRequest, res: Response<ApiResponse>
   }
 }
 
-/**
- * Delete comment
- */
 export async function deleteComment(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
@@ -222,7 +207,7 @@ export async function deleteComment(req: AuthRequest, res: Response<ApiResponse>
       })
     }
 
-    // Only the comment author or Admin can delete
+
     if (comment.userId !== req.user?.id && req.user?.role !== 'Admin') {
       return res.status(403).json({
         success: false,

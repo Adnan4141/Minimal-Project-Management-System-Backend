@@ -1,18 +1,10 @@
-/**
- * Attachment Controller
- * Handles file uploads and database operations for attachments
- */
 
 import { Response } from 'express'
 import { AuthRequest, ApiResponse } from '../types'
 import { prisma } from '../prisma/client'
 import { logger } from '../utils/logger'
-import { config } from '../config/env'
-import path from 'path'
+import { uploadToCloudinary, deleteFromCloudinary, extractPublicIdFromUrl } from '../utils/cloudinary'
 
-/**
- * Get attachments for a task
- */
 export async function getTaskAttachments(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { taskId } = req.params
@@ -45,9 +37,6 @@ export async function getTaskAttachments(req: AuthRequest, res: Response<ApiResp
   }
 }
 
-/**
- * Upload and create attachment
- */
 export async function uploadAttachment(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { taskId } = req.body
@@ -67,7 +56,7 @@ export async function uploadAttachment(req: AuthRequest, res: Response<ApiRespon
       })
     }
 
-    // Verify task exists
+
     const task = await prisma.task.findUnique({
       where: { id: taskId },
     })
@@ -79,15 +68,24 @@ export async function uploadAttachment(req: AuthRequest, res: Response<ApiRespon
       })
     }
 
-    // Generate file URL
-    const fileUrl = `${config.upload.publicUrl}/${file.filename}`
+    if (!file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: 'File buffer is missing',
+      })
+    }
+
+    const cloudinaryResult = await uploadToCloudinary(
+      file.buffer,
+      file.originalname
+    )
 
     const attachment = await prisma.attachment.create({
       data: {
         filename: file.originalname,
-        fileUrl,
+        fileUrl: cloudinaryResult.secure_url,
         fileType: file.mimetype,
-        fileSize: file.size,
+        fileSize: cloudinaryResult.bytes,
         taskId,
         uploadedById: req.user!.id,
       },
@@ -102,7 +100,7 @@ export async function uploadAttachment(req: AuthRequest, res: Response<ApiRespon
       },
     })
 
-    // Create activity log
+
     await prisma.activityLog.create({
       data: {
         type: 'attachment_added',
@@ -126,14 +124,11 @@ export async function uploadAttachment(req: AuthRequest, res: Response<ApiRespon
   }
 }
 
-/**
- * Create attachment record (for external URLs)
- */
 export async function createAttachment(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { taskId, filename, fileUrl, fileType, fileSize } = req.body
 
-    // Verify task exists
+
     const task = await prisma.task.findUnique({
       where: { id: taskId },
     })
@@ -165,7 +160,7 @@ export async function createAttachment(req: AuthRequest, res: Response<ApiRespon
       },
     })
 
-    // Create activity log
+
     await prisma.activityLog.create({
       data: {
         type: 'attachment_added',
@@ -189,9 +184,6 @@ export async function createAttachment(req: AuthRequest, res: Response<ApiRespon
   }
 }
 
-/**
- * Delete attachment
- */
 export async function deleteAttachment(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
@@ -207,7 +199,7 @@ export async function deleteAttachment(req: AuthRequest, res: Response<ApiRespon
       })
     }
 
-    // Only the uploader, task creator, or Admin/Manager can delete
+
     const task = await prisma.task.findUnique({
       where: { id: attachment.taskId },
     })
@@ -223,6 +215,15 @@ export async function deleteAttachment(req: AuthRequest, res: Response<ApiRespon
         success: false,
         message: 'Insufficient permissions',
       })
+    }
+
+    const publicId = extractPublicIdFromUrl(attachment.fileUrl)
+    if (publicId) {
+      try {
+        await deleteFromCloudinary(publicId)
+      } catch (error: any) {
+        logger.error('Failed to delete from Cloudinary', error)
+      }
     }
 
     await prisma.attachment.delete({

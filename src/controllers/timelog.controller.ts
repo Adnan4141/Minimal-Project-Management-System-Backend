@@ -1,15 +1,9 @@
-/**
- * Time Log Controller
- */
 
 import { Response } from 'express'
 import { AuthRequest, ApiResponse, CreateTimeLogData } from '../types'
 import { prisma } from '../prisma/client'
 import { logger } from '../utils/logger'
 
-/**
- * Get time logs for a task
- */
 export async function getTaskTimeLogs(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { taskId } = req.params
@@ -35,7 +29,7 @@ export async function getTaskTimeLogs(req: AuthRequest, res: Response<ApiRespons
       orderBy: { date: 'desc' },
     })
 
-    // Calculate total hours
+
     const totalHours = timeLogs.reduce((sum, log) => sum + Number(log.hours), 0)
 
     return res.json({
@@ -54,9 +48,6 @@ export async function getTaskTimeLogs(req: AuthRequest, res: Response<ApiRespons
   }
 }
 
-/**
- * Get time logs for a user
- */
 export async function getUserTimeLogs(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const userId = req.query.userId as string | undefined
@@ -69,7 +60,7 @@ export async function getUserTimeLogs(req: AuthRequest, res: Response<ApiRespons
       })
     }
 
-    // Users can only see their own logs unless Admin/Manager
+
     if (targetUserId !== req.user?.id && req.user?.role !== 'Admin' && req.user?.role !== 'Manager') {
       return res.status(403).json({
         success: false,
@@ -116,14 +107,11 @@ export async function getUserTimeLogs(req: AuthRequest, res: Response<ApiRespons
   }
 }
 
-/**
- * Create time log
- */
 export async function createTimeLog(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const data: CreateTimeLogData = req.body
 
-    // Verify task exists
+
     const task = await prisma.task.findUnique({
       where: { id: data.taskId },
     })
@@ -135,7 +123,7 @@ export async function createTimeLog(req: AuthRequest, res: Response<ApiResponse>
       })
     }
 
-    // Check if user is assigned to the task (unless Admin/Manager)
+
     if (req.user?.role !== 'Admin' && req.user?.role !== 'Manager') {
       const assignment = await prisma.taskAssignment.findFirst({
         where: {
@@ -177,7 +165,7 @@ export async function createTimeLog(req: AuthRequest, res: Response<ApiResponse>
       },
     })
 
-    // Create activity log
+
     await prisma.activityLog.create({
       data: {
         type: 'time_logged',
@@ -204,9 +192,6 @@ export async function createTimeLog(req: AuthRequest, res: Response<ApiResponse>
   }
 }
 
-/**
- * Update time log
- */
 export async function updateTimeLog(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
@@ -223,7 +208,7 @@ export async function updateTimeLog(req: AuthRequest, res: Response<ApiResponse>
       })
     }
 
-    // Only the log owner or Admin/Manager can update
+
     if (timeLog.userId !== req.user?.id && req.user?.role !== 'Admin' && req.user?.role !== 'Manager') {
       return res.status(403).json({
         success: false,
@@ -270,9 +255,6 @@ export async function updateTimeLog(req: AuthRequest, res: Response<ApiResponse>
   }
 }
 
-/**
- * Delete time log
- */
 export async function deleteTimeLog(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
@@ -288,7 +270,7 @@ export async function deleteTimeLog(req: AuthRequest, res: Response<ApiResponse>
       })
     }
 
-    // Only the log owner or Admin/Manager can delete
+
     if (timeLog.userId !== req.user?.id && req.user?.role !== 'Admin' && req.user?.role !== 'Manager') {
       return res.status(403).json({
         success: false,

@@ -1,7 +1,3 @@
-/**
- * OAuth Controller
- * Handles Google and Facebook OAuth authentication
- */
 
 import { Response } from 'express'
 import { AuthRequest, ApiResponse } from '../types'
@@ -14,9 +10,6 @@ import axios from 'axios'
 import { hashPassword } from '../utils/password'
 import { logger } from '../utils/logger'
 
-/**
- * Google OAuth - Verify token and create/login user
- */
 export async function googleOAuth(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { token } = req.body
@@ -35,7 +28,7 @@ export async function googleOAuth(req: AuthRequest, res: Response<ApiResponse>) 
       })
     }
 
-    // Verify Google token
+
     const client = new OAuth2Client(config.oauth.google.clientId)
     
     try {
@@ -55,7 +48,7 @@ export async function googleOAuth(req: AuthRequest, res: Response<ApiResponse>) 
 
       const { email, name, picture, sub: googleId } = payload
 
-      // Find or create user
+
       let user = await prisma.user.findUnique({
         where: { email },
         select: {
@@ -72,8 +65,8 @@ export async function googleOAuth(req: AuthRequest, res: Response<ApiResponse>) 
       })
 
       if (!user) {
-        // Create new user with OAuth
-        // Generate a random password (won't be used for OAuth users)
+
+
         const randomPassword = await hashPassword(Math.random().toString(36).slice(-12))
 
         user = await prisma.user.create({
@@ -83,6 +76,7 @@ export async function googleOAuth(req: AuthRequest, res: Response<ApiResponse>) 
             name: name || 'User',
             role: UserRole.Member,
             avatar: picture || undefined,
+            isActive: false,
           },
           select: {
             id: true,
@@ -97,15 +91,16 @@ export async function googleOAuth(req: AuthRequest, res: Response<ApiResponse>) 
           },
         })
       } else {
-        // Check if user is active
+
         if (!user.isActive) {
           return res.status(403).json({
             success: false,
-            message: 'Account is deactivated',
+            message: 'Your account is pending activation. Please contact an administrator to activate your account.',
+            requiresActivation: true,
           })
         }
 
-        // Update avatar if available and different
+
         if (picture && picture !== user.avatar) {
           user = await prisma.user.update({
             where: { id: user.id },
@@ -125,7 +120,7 @@ export async function googleOAuth(req: AuthRequest, res: Response<ApiResponse>) 
         }
       }
 
-      // Generate tokens
+
       const tokenPayload = {
         id: user.id,
         email: user.email,
@@ -136,7 +131,7 @@ export async function googleOAuth(req: AuthRequest, res: Response<ApiResponse>) 
       const accessToken = generateAccessToken(tokenPayload)
       const refreshToken = generateRefreshToken(tokenPayload)
 
-      // Set refresh token in HTTP-only cookie
+
       res.cookie(config.jwt.cookieName, refreshToken, {
         httpOnly: true,
         secure: config.server.nodeEnv === 'production',
@@ -176,9 +171,6 @@ export async function googleOAuth(req: AuthRequest, res: Response<ApiResponse>) 
   }
 }
 
-/**
- * Facebook OAuth - Verify token and create/login user
- */
 export async function facebookOAuth(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { accessToken } = req.body
@@ -198,7 +190,7 @@ export async function facebookOAuth(req: AuthRequest, res: Response<ApiResponse>
     }
 
     try {
-      // First, verify the token and get user info
+
       const debugResponse = await axios.get(
         `https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${config.oauth.facebook.appId}|${config.oauth.facebook.appSecret}`
       )
@@ -212,7 +204,7 @@ export async function facebookOAuth(req: AuthRequest, res: Response<ApiResponse>
 
       const userId = debugResponse.data.data.user_id
 
-      // Get user info from Facebook
+
       const userInfoResponse = await axios.get(
         `https://graph.facebook.com/${userId}?fields=id,name,email,picture&access_token=${accessToken}`
       )
@@ -226,7 +218,7 @@ export async function facebookOAuth(req: AuthRequest, res: Response<ApiResponse>
         })
       }
 
-      // Find or create user
+
       let user = await prisma.user.findUnique({
         where: { email },
         select: {
@@ -243,7 +235,7 @@ export async function facebookOAuth(req: AuthRequest, res: Response<ApiResponse>
       })
 
       if (!user) {
-        // Create new user with OAuth
+
         const randomPassword = await hashPassword(Math.random().toString(36).slice(-12))
         const avatarUrl = picture?.data?.url
 
@@ -268,15 +260,16 @@ export async function facebookOAuth(req: AuthRequest, res: Response<ApiResponse>
           },
         })
       } else {
-        // Check if user is active
+
         if (!user.isActive) {
           return res.status(403).json({
             success: false,
-            message: 'Account is deactivated',
+            message: 'Your account is pending activation. Please contact an administrator to activate your account.',
+            requiresActivation: true,
           })
         }
 
-        // Update avatar if available and different
+
         const avatarUrl = picture?.data?.url
         if (avatarUrl && avatarUrl !== user.avatar) {
           user = await prisma.user.update({
@@ -297,7 +290,7 @@ export async function facebookOAuth(req: AuthRequest, res: Response<ApiResponse>
         }
       }
 
-      // Generate tokens
+
       const tokenPayload = {
         id: user.id,
         email: user.email,
@@ -308,7 +301,7 @@ export async function facebookOAuth(req: AuthRequest, res: Response<ApiResponse>
       const accessTokenJWT = generateAccessToken(tokenPayload)
       const refreshToken = generateRefreshToken(tokenPayload)
 
-      // Set refresh token in HTTP-only cookie
+
       res.cookie(config.jwt.cookieName, refreshToken, {
         httpOnly: true,
         secure: config.server.nodeEnv === 'production',

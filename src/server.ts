@@ -1,4 +1,3 @@
-// Load environment variables FIRST before any other imports
 import 'dotenv/config'
 
 import express from 'express'
@@ -20,7 +19,6 @@ initializeEmailService()
 const app = express()
 const httpServer = createServer(app)
 
-// Middleware
 app.use(helmet())
 app.use(morgan('dev'))
 app.use(cors({
@@ -31,7 +29,6 @@ app.use(cookieParser())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
-// Serve uploaded files statically
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -42,20 +39,16 @@ app.use(config.upload.publicUrl || '/uploads', express.static(path.join(__dirnam
 
 
 
-// Create API router with prefix
 const apiRouter = express.Router()
 mountRoutes(apiRouter)
 
-// Mount API routes with prefix
 const apiPrefix = config.server.apiPrefix || '/api'
 app.use(apiPrefix, apiRouter)
 
-// Health check endpoint
 app.get(apiPrefix, (req, res) => {
   res.json({ message: 'API Server working', version: '1.0.0' })
 })
 
-// Error handling middleware 
 app.use(notFoundHandler)
 app.use(errorHandler)
 

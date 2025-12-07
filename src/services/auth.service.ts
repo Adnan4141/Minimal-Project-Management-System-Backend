@@ -1,7 +1,3 @@
-/**
- * Authentication Service
- * Handles OAuth and credentials authentication logic
- */
 
 import { prisma } from '../prisma/client'
 import { hashPassword } from '../utils/password'
@@ -30,10 +26,6 @@ export interface AuthResult {
   refreshToken: string
 }
 
-/**
- * Handle OAuth authentication
- * Verifies token, extracts user info, and creates/updates user
- */
 export async function handleOAuth(
   provider: 'google' | 'facebook',
   idToken?: string,
@@ -42,7 +34,7 @@ export async function handleOAuth(
 ): Promise<AuthResult> {
   let userInfo: OAuthUserInfo
 
-  // Verify token and extract user info based on provider
+
   if (provider === 'google') {
     if (!idToken) {
       throw new Error('Google ID token is required')
@@ -57,7 +49,7 @@ export async function handleOAuth(
     throw new Error('Invalid OAuth provider')
   }
 
-  // Find or create user
+
   let user = await prisma.user.findUnique({
     where: { email: userInfo.email },
     select: {
@@ -73,8 +65,8 @@ export async function handleOAuth(
   })
 
   if (!user) {
-    // Create new user with OAuth
-    // Generate a random password (won't be used for OAuth users)
+
+
     const randomPassword = await hashPassword(Math.random().toString(36).slice(-12))
 
     user = await prisma.user.create({
@@ -84,6 +76,7 @@ export async function handleOAuth(
         name: userInfo.name,
         role: UserRole.Member,
         avatar: userInfo.picture || undefined,
+        isActive: false,
       },
       select: {
         id: true,
@@ -97,12 +90,11 @@ export async function handleOAuth(
       },
     })
   } else {
-    // Check if user is active
     if (!user.isActive) {
-      throw new Error('Account is deactivated')
+      throw new Error('Your account is pending activation. Please contact an administrator to activate your account.')
     }
 
-    // Update avatar if available and different
+
     if (userInfo.picture && userInfo.picture !== user.avatar) {
       user = await prisma.user.update({
         where: { id: user.id },
@@ -121,7 +113,7 @@ export async function handleOAuth(
     }
   }
 
-  // Generate tokens using 'oauth' method for social login
+
   const tokenPayload = {
     id: user.id,
     email: user.email,
@@ -129,7 +121,7 @@ export async function handleOAuth(
     name: user.name,
   }
 
-  // Use 'oauth' method for social login tokens
+
   const accessTokenJWT = generateAccessToken(tokenPayload, 'oauth')
   const refreshToken = generateRefreshToken(tokenPayload, 'oauth')
 

@@ -1,35 +1,32 @@
-/**
- * User/Team Management Controller
- */
-
 import { Response } from 'express'
-import { AuthRequest, ApiResponse, CreateUserData, UpdateUserData } from '../types'
+import { AuthRequest, ApiResponse, UpdateUserData } from '../types'
 import { prisma } from '../prisma/client'
-import { hashPassword } from '../utils/password'
-import { UserRole } from '../../generated/prisma/enums.js'
 import { logger } from '../utils/logger'
-import { sendInviteEmail } from '../utils/email'
+import { hashPassword } from '../utils/password'
+import { uploadToCloudinary, deleteFromCloudinary, extractPublicIdFromUrl } from '../utils/cloudinary'
 import crypto from 'crypto'
 
-/**
- * Get all users (with pagination and filters)
- */
 export async function getUsers(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const page = parseInt(req.query.page as string) || 1
-    const limit = parseInt(req.query.limit as string) || 10
-    const role = req.query.role as UserRole | undefined
-    const search = req.query.search as string | undefined
+    const limit = parseInt(req.query.limit as string) || 20
     const skip = (page - 1) * limit
+    const search = req.query.search as string | undefined
+    const role = req.query.role as string | undefined
+    const isActive = req.query.isActive as string | undefined
 
     const where: any = {}
-    if (role) where.role = role
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
-        { department: { contains: search, mode: 'insensitive' } },
       ]
+    }
+    if (role) {
+      where.role = role
+    }
+    if (isActive !== undefined) {
+      where.isActive = isActive === 'true'
     }
 
     const [users, total] = await Promise.all([
@@ -47,6 +44,13 @@ export async function getUsers(req: AuthRequest, res: Response<ApiResponse>) {
           avatar: true,
           isActive: true,
           createdAt: true,
+          _count: {
+            select: {
+              assignedTasks: true,
+              createdProjects: true,
+              createdTasks: true,
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -74,9 +78,6 @@ export async function getUsers(req: AuthRequest, res: Response<ApiResponse>) {
   }
 }
 
-/**
- * Get user by ID
- */
 export async function getUserById(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
@@ -124,14 +125,17 @@ export async function getUserById(req: AuthRequest, res: Response<ApiResponse>) 
   }
 }
 
-/**
- * Create user (Admin/Manager only)
- */
 export async function createUser(req: AuthRequest, res: Response<ApiResponse>) {
   try {
-    const data: CreateUserData = req.body
+    const data: UpdateUserData = req.body
 
-    // Check if user already exists
+    if (!data.email || !data.name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and name are required',
+      })
+    }
+
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
     })
@@ -139,11 +143,10 @@ export async function createUser(req: AuthRequest, res: Response<ApiResponse>) {
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'User with this email already exists',
+        message: 'Email already in use',
       })
     }
 
-    // Hash password if provided, otherwise generate a random one
     const password = data.password
       ? await hashPassword(data.password)
       : await hashPassword(Math.random().toString(36).slice(-12))
@@ -153,9 +156,10 @@ export async function createUser(req: AuthRequest, res: Response<ApiResponse>) {
         email: data.email,
         password,
         name: data.name,
-        role: data.role,
+        role: data.role || 'Member',
         department: data.department,
         skills: data.skills || [],
+        isActive: true,
       },
       select: {
         id: true,
@@ -165,6 +169,7 @@ export async function createUser(req: AuthRequest, res: Response<ApiResponse>) {
         department: true,
         skills: true,
         avatar: true,
+        isActive: true,
         createdAt: true,
       },
     })
@@ -183,15 +188,12 @@ export async function createUser(req: AuthRequest, res: Response<ApiResponse>) {
   }
 }
 
-/**
- * Update user
- */
 export async function updateUser(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
     const data: Partial<UpdateUserData> = req.body
 
-    // Check if user exists
+
     const existingUser = await prisma.user.findUnique({
       where: { id },
     })
@@ -203,7 +205,7 @@ export async function updateUser(req: AuthRequest, res: Response<ApiResponse>) {
       })
     }
 
-    // Check permissions: Admin/Manager can update anyone, users can only update themselves
+
     if (req.user?.role !== 'Admin' && req.user?.role !== 'Manager' && req.user?.id !== id) {
       return res.status(403).json({
         success: false,
@@ -211,7 +213,7 @@ export async function updateUser(req: AuthRequest, res: Response<ApiResponse>) {
       })
     }
 
-    // Prevent users from changing their own role
+
     if (req.user?.id === id && data.role && data.role !== existingUser.role) {
       return res.status(403).json({
         success: false,
@@ -219,7 +221,21 @@ export async function updateUser(req: AuthRequest, res: Response<ApiResponse>) {
       })
     }
 
-    // If email is being changed, check for duplicates
+    if (data.role && req.user?.role !== 'Admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only administrators can change user roles',
+      })
+    }
+
+    if (data.isActive !== undefined && req.user?.role !== 'Admin' && req.user?.role !== 'Manager') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only administrators and managers can activate/deactivate accounts',
+      })
+    }
+
+
     if (data.email && data.email !== existingUser.email) {
       const emailExists = await prisma.user.findUnique({
         where: { email: data.email },
@@ -239,6 +255,7 @@ export async function updateUser(req: AuthRequest, res: Response<ApiResponse>) {
       ...(data.role && { role: data.role }),
       ...(data.department !== undefined && { department: data.department }),
       ...(data.skills && { skills: data.skills }),
+      ...(data.avatar !== undefined && { avatar: data.avatar }),
       ...(data.isActive !== undefined && { isActive: data.isActive }),
     }
 
@@ -258,6 +275,7 @@ export async function updateUser(req: AuthRequest, res: Response<ApiResponse>) {
       },
     })
 
+
     return res.json({
       success: true,
       message: 'User updated successfully',
@@ -272,36 +290,248 @@ export async function updateUser(req: AuthRequest, res: Response<ApiResponse>) {
   }
 }
 
-/**
- * Delete user (soft delete by setting isActive to false)
- */
-export async function deleteUser(req: AuthRequest, res: Response<ApiResponse>) {
+export async function activateUser(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
 
-    // Prevent self-deletion
-    if (req.user?.id === id) {
-      return res.status(400).json({
+    const user = await prisma.user.findUnique({
+      where: { id },
+    })
+
+    if (!user) {
+      return res.status(404).json({
         success: false,
-        message: 'Cannot delete your own account',
+        message: 'User not found',
       })
     }
 
-    const user = await prisma.user.update({
+    if (user.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'User is already active',
+      })
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: { isActive: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        department: true,
+        skills: true,
+        avatar: true,
+        isActive: true,
+        updatedAt: true,
+      },
+    })
+
+    return res.json({
+      success: true,
+      message: 'User activated successfully',
+      data: updatedUser,
+    })
+  } catch (error: any) {
+    logger.error('Failed to activate user', error)
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to activate user',
+    })
+  }
+}
+
+export async function deactivateUser(req: AuthRequest, res: Response<ApiResponse>) {
+  try {
+    const { id } = req.params
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+    })
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      })
+    }
+
+    if (user.id === req.user?.id) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot deactivate your own account',
+      })
+    }
+
+    if (!user.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'User is already inactive',
+      })
+    }
+
+    const updatedUser = await prisma.user.update({
       where: { id },
       data: { isActive: false },
       select: {
         id: true,
         email: true,
         name: true,
+        role: true,
+        department: true,
+        skills: true,
+        avatar: true,
         isActive: true,
+        updatedAt: true,
       },
     })
 
     return res.json({
       success: true,
       message: 'User deactivated successfully',
-      data: user,
+      data: updatedUser,
+    })
+  } catch (error: any) {
+    logger.error('Failed to deactivate user', error)
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to deactivate user',
+    })
+  }
+}
+
+export async function uploadAvatar(req: AuthRequest, res: Response<ApiResponse>) {
+  try {
+    const file = req.file as Express.Multer.File
+
+    if (!file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded',
+      })
+    }
+
+    if (!file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: 'File buffer is missing',
+      })
+    }
+
+    if (!file.mimetype.startsWith('image/')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only image files are allowed',
+      })
+    }
+
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authenticated',
+      })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+    })
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      })
+    }
+
+    const cloudinaryResult = await uploadToCloudinary(
+      file.buffer,
+      `avatar-${req.user.id}-${Date.now()}`,
+      'project-management/avatars'
+    )
+
+    if (user.avatar) {
+      const publicId = extractPublicIdFromUrl(user.avatar)
+      if (publicId) {
+        try {
+          await deleteFromCloudinary(publicId)
+        } catch (error: any) {
+          logger.error('Failed to delete old avatar from Cloudinary', error)
+        }
+      }
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { avatar: cloudinaryResult.secure_url },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        department: true,
+        skills: true,
+        avatar: true,
+        isActive: true,
+        updatedAt: true,
+      },
+    })
+
+    return res.json({
+      success: true,
+      message: 'Avatar uploaded successfully',
+      data: updatedUser,
+    })
+  } catch (error: any) {
+    logger.error('Failed to upload avatar', error)
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to upload avatar',
+    })
+  }
+}
+
+export async function deleteUser(req: AuthRequest, res: Response<ApiResponse>) {
+  try {
+    const { id } = req.params
+
+
+    if (req.user?.id === id) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot delete your own account',
+      })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+    })
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      })
+    }
+
+    if (user.avatar) {
+      const publicId = extractPublicIdFromUrl(user.avatar)
+      if (publicId) {
+        try {
+          await deleteFromCloudinary(publicId)
+        } catch (error: any) {
+          logger.error('Failed to delete avatar from Cloudinary', error)
+        }
+      }
+    }
+
+    await prisma.user.delete({
+      where: { id },
+    })
+
+    return res.json({
+      success: true,
+      message: 'User deleted successfully',
     })
   } catch (error: any) {
     logger.error('Failed to delete user', error)
@@ -312,21 +542,21 @@ export async function deleteUser(req: AuthRequest, res: Response<ApiResponse>) {
   }
 }
 
-/**
- * Get team member statistics
- */
 export async function getTeamMemberStats(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
 
-    // Check if user exists
     const user = await prisma.user.findUnique({
       where: { id },
       select: {
         id: true,
-        name: true,
         email: true,
+        name: true,
         role: true,
+        department: true,
+        skills: true,
+        avatar: true,
+        isActive: true,
       },
     })
 
@@ -337,345 +567,212 @@ export async function getTeamMemberStats(req: AuthRequest, res: Response<ApiResp
       })
     }
 
-    // Get task statistics
-    const [
-      totalTasks,
-      completedTasks,
-      inProgressTasks,
-      assignedTasks,
-      createdTasks,
-      createdProjects,
-      managedProjects,
-      totalTimeLogged,
-      recentActivities,
-    ] = await Promise.all([
-      // Total assigned tasks
-      prisma.taskAssignment.count({
+    const [taskStats, projectStats, timeStats, recentTasks, recentActivities] = await Promise.all([
+      prisma.taskAssignment.groupBy({
+        by: ['taskId'],
         where: { userId: id },
+        _count: true,
+      }).then(async (assignments) => {
+        const taskIds = assignments.map((a) => a.taskId)
+        const tasks = await prisma.task.findMany({
+          where: { id: { in: taskIds } },
+          select: { id: true, status: true },
+        })
+
+        const total = tasks.length
+        const completed = tasks.filter((t) => t.status === 'Done').length
+        const inProgress = tasks.filter((t) => t.status === 'InProgress').length
+
+        return {
+          total,
+          completed,
+          inProgress,
+          created: 0,
+          completionRate: total > 0 ? (completed / total) * 100 : 0,
+        }
       }),
-      // Completed tasks
-      prisma.taskAssignment.count({
-        where: {
-          userId: id,
-          task: {
-            status: 'Done',
-          },
-        },
+      prisma.task.findMany({
+        where: { creatorId: id },
+        select: { id: true },
+      }).then(async (createdTasks) => {
+        const created = createdTasks.length
+        const managed = await prisma.project.count({
+          where: { managerId: id },
+        })
+        return {
+          created,
+          managed,
+          total: created + managed,
+        }
       }),
-      // In progress tasks
-      prisma.taskAssignment.count({
-        where: {
-          userId: id,
-          task: {
-            status: 'InProgress',
-          },
-        },
+      prisma.timeLog.groupBy({
+        by: ['taskId'],
+        where: { userId: id },
+        _sum: { hours: true },
+      }).then(async (logs) => {
+        const taskIds = logs.map((l) => l.taskId)
+        const tasks = await prisma.task.findMany({
+          where: { id: { in: taskIds } },
+          include: { sprint: { include: { project: true } } },
+        })
+
+        const totalHours = logs.reduce((sum, log) => sum + Number(log._sum.hours || 0), 0)
+        const byProject = tasks.reduce((acc, task) => {
+          const projectId = task.sprint?.project?.id || 'unknown'
+          const projectTitle = task.sprint?.project?.title || 'Unknown Project'
+          const hours = Number(
+            logs.find((l) => l.taskId === task.id)?._sum.hours || 0
+          )
+
+          const existing = acc.find((p) => p.projectId === projectId)
+          if (existing) {
+            existing.hours += hours
+          } else {
+            acc.push({ projectId, projectTitle, hours })
+          }
+          return acc
+        }, [] as Array<{ projectId: string; projectTitle: string; hours: number }>)
+
+        return { totalHours, byProject }
       }),
-      // All assigned tasks with details
       prisma.taskAssignment.findMany({
         where: { userId: id },
+        orderBy: { assignedAt: 'desc' },
+        take: 5,
         include: {
           task: {
+            include: {
+              sprint: { include: { project: { select: { id: true, title: true } } } },
+            },
             select: {
               id: true,
               title: true,
               status: true,
               priority: true,
-              sprint: {
-                select: {
-                  id: true,
-                  title: true,
-                  project: {
-                    select: {
-                      id: true,
-                      title: true,
-                    },
-                  },
-                },
-              },
             },
           },
         },
-        take: 10,
-        orderBy: { assignedAt: 'desc' },
-      }),
-      // Created tasks count
-      prisma.task.count({
-        where: { creatorId: id },
-      }),
-      // Created projects count
-      prisma.project.count({
-        where: { creatorId: id },
-      }),
-      // Managed projects count
-      prisma.project.count({
-        where: { managerId: id },
-      }),
-      // Total time logged
-      prisma.timeLog.aggregate({
-        where: { userId: id },
-        _sum: {
-          hours: true,
-        },
-      }),
-      // Recent activities
+      }).then((assignments) =>
+        assignments.map((a) => ({
+          id: a.task.id,
+          title: a.task.title,
+          status: a.task.status,
+          priority: a.task.priority,
+          project: a.task.sprint?.project,
+          sprint: a.task.sprint ? { id: a.task.sprint.id, title: a.task.sprint.title } : undefined,
+          assignedAt: a.assignedAt.toISOString(),
+        }))
+      ),
       prisma.activityLog.findMany({
         where: { userId: id },
-        include: {
-          task: {
-            select: {
-              id: true,
-              title: true,
-            },
-          },
-        },
-        take: 10,
         orderBy: { createdAt: 'desc' },
-      }),
+        take: 5,
+        include: {
+          task: { select: { id: true, title: true } },
+        },
+      }).then((activities) =>
+        activities.map((a) => ({
+          id: a.id,
+          type: a.type,
+          description: a.description || '',
+          task: a.task ? { id: a.task.id, title: a.task.title } : undefined,
+          createdAt: a.createdAt.toISOString(),
+        }))
+      ),
     ])
 
-    // Calculate time logged by project
-    const timeLogsByProject = await prisma.timeLog.groupBy({
-      by: ['taskId'],
-      where: { userId: id },
-      _sum: {
-        hours: true,
-      },
+    const createdTasksCount = await prisma.task.count({
+      where: { creatorId: id },
     })
-
-    const projectIds = await Promise.all(
-      timeLogsByProject.map(async (log) => {
-        const task = await prisma.task.findUnique({
-          where: { id: log.taskId },
-          select: {
-            sprint: {
-              select: {
-                projectId: true,
-                project: {
-                  select: {
-                    id: true,
-                    title: true,
-                  },
-                },
-              },
-            },
-          },
-        })
-        return task?.sprint?.projectId
-      })
-    )
-
-    const uniqueProjectIds = [...new Set(projectIds.filter(Boolean))]
-
-    const projectTimeStats = await Promise.all(
-      uniqueProjectIds.map(async (projectId) => {
-        const project = await prisma.project.findUnique({
-          where: { id: projectId as string },
-          select: {
-            id: true,
-            title: true,
-          },
-        })
-
-        const projectTasks = await prisma.task.findMany({
-          where: {
-            sprint: {
-              projectId: projectId as string,
-            },
-            assignees: {
-              some: {
-                userId: id,
-              },
-            },
-          },
-          select: {
-            id: true,
-          },
-        })
-
-        const taskIds = projectTasks.map((t) => t.id)
-
-        const totalHours = await prisma.timeLog.aggregate({
-          where: {
-            userId: id,
-            taskId: {
-              in: taskIds,
-            },
-          },
-          _sum: {
-            hours: true,
-          },
-        })
-
-        return {
-          projectId: project?.id,
-          projectTitle: project?.title,
-          hours: Number(totalHours._sum.hours || 0),
-        }
-      })
-    )
 
     return res.json({
       success: true,
       data: {
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
+        user,
         statistics: {
           tasks: {
-            total: totalTasks,
-            completed: completedTasks,
-            inProgress: inProgressTasks,
-            created: createdTasks,
-            completionRate: totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,
+            ...taskStats,
+            created: createdTasksCount,
           },
-          projects: {
-            created: createdProjects,
-            managed: managedProjects,
-            total: createdProjects + managedProjects,
-          },
-          time: {
-            totalHours: Number(totalTimeLogged._sum.hours || 0),
-            byProject: projectTimeStats,
-          },
+          projects: projectStats,
+          time: timeStats,
         },
-        recentTasks: assignedTasks.map((assignment) => ({
-          id: assignment.task.id,
-          title: assignment.task.title,
-          status: assignment.task.status,
-          priority: assignment.task.priority,
-          project: assignment.task.sprint?.project,
-          sprint: assignment.task.sprint,
-          assignedAt: assignment.assignedAt,
-        })),
-        recentActivities: recentActivities.map((activity) => ({
-          id: activity.id,
-          type: activity.type,
-          description: activity.description,
-          task: activity.task,
-          createdAt: activity.createdAt,
-        })),
+        recentTasks,
+        recentActivities,
       },
     })
   } catch (error: any) {
-    logger.error('Failed to fetch team member statistics', error)
+    logger.error('Failed to fetch team member stats', error)
     return res.status(500).json({
       success: false,
-      message: error.message || 'Failed to fetch team member statistics',
+      message: error.message || 'Failed to fetch team member stats',
     })
   }
 }
 
 export async function inviteUser(req: AuthRequest, res: Response<ApiResponse>) {
   try {
-    const { email, name, role, department, skills, sendEmail } = req.body
-
-    if (req.user?.role !== 'Admin' && req.user?.role !== 'Manager') {
-      return res.status(403).json({
-        success: false,
-        message: 'Only Admins and Managers can invite users',
-      })
-    }
-
-    if (role === 'Admin' && req.user?.role !== 'Admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Only Admins can invite Admin users',
-      })
-    }
+    const data: UpdateUserData & { sendEmail?: boolean } = req.body
 
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: data.email },
     })
 
-    if (existingUser && existingUser.isActive) {
+    if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'User with this email already exists',
+        message: 'Email already in use',
       })
     }
+
+    const randomPassword = crypto.randomBytes(16).toString('hex')
+    const hashedPassword = await hashPassword(randomPassword)
 
     const inviteToken = crypto.randomBytes(32).toString('hex')
     const inviteTokenExpiry = new Date()
     inviteTokenExpiry.setDate(inviteTokenExpiry.getDate() + 7)
 
-    const randomPassword = crypto.randomBytes(16).toString('hex')
-    const hashedPassword = await hashPassword(randomPassword)
-
-    let user
-    if (existingUser) {
-      user = await prisma.user.update({
-        where: { id: existingUser.id },
-        data: {
-          email,
-          password: hashedPassword,
-          name,
-          role,
-          department,
-          skills: skills || [],
-          inviteToken,
-          inviteTokenExpiry,
-          isActive: false,
-        },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          department: true,
-          skills: true,
-          createdAt: true,
-        },
-      })
-    } else {
-      user = await prisma.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          name,
-          role,
-          department,
-          skills: skills || [],
-          inviteToken,
-          inviteTokenExpiry,
-          isActive: false,
-        },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          department: true,
-          skills: true,
-          createdAt: true,
-        },
+    if (!data.email || !data.name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and name are required',
       })
     }
 
-    let emailSent = false
-    if (sendEmail) {
-      emailSent = await sendInviteEmail(
-        email,
-        name,
+    const user = await prisma.user.create({
+      data: {
+        email: data.email,
+        password: hashedPassword,
+        name: data.name,
+        role: data.role || 'Member',
+        department: data.department,
+        skills: data.skills || [],
         inviteToken,
-        req.user?.name || 'Admin'
-      )
-    }
+        inviteTokenExpiry,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        department: true,
+        skills: true,
+        avatar: true,
+        isActive: true,
+        inviteToken: true,
+        createdAt: true,
+      },
+    })
+
+    const inviteUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/accept-invite?token=${inviteToken}`
 
     return res.status(201).json({
       success: true,
-      message: emailSent
-        ? 'Invitation sent successfully'
-        : 'User created. Invite email could not be sent. Please share the invite link manually.',
+      message: 'User invited successfully',
       data: {
-        user,
-        inviteToken: emailSent ? undefined : inviteToken,
-        inviteUrl: emailSent
-          ? undefined
-          : `${process.env.FRONTEND_URL || 'http://localhost:3000'}/accept-invite?token=${inviteToken}`,
+        ...user,
+        inviteUrl,
       },
     })
   } catch (error: any) {
@@ -686,4 +783,3 @@ export async function inviteUser(req: AuthRequest, res: Response<ApiResponse>) {
     })
   }
 }
-

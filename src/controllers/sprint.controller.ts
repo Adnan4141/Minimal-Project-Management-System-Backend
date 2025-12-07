@@ -1,15 +1,9 @@
-/**
- * Sprint Controller
- */
 
 import { Response } from 'express'
 import { AuthRequest, ApiResponse, CreateSprintData, UpdateSprintData } from '../types'
 import { prisma } from '../prisma/client'
 import { logger } from '../utils/logger'
 
-/**
- * Get all sprints for a project
- */
 export async function getSprints(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const projectId = req.query.projectId as string | undefined
@@ -61,7 +55,7 @@ export async function getSprints(req: AuthRequest, res: Response<ApiResponse>) {
       orderBy: { sprintNumber: 'asc' },
     })
 
-    // Calculate stats for each sprint
+
     const sprintsWithStats = sprints.map((sprint) => {
       const totalTasks = sprint.tasks.length
       const completedTasks = sprint.tasks.filter((t) => t.status === 'Done').length
@@ -91,9 +85,6 @@ export async function getSprints(req: AuthRequest, res: Response<ApiResponse>) {
   }
 }
 
-/**
- * Get sprint by ID
- */
 export async function getSprintById(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
@@ -160,14 +151,11 @@ export async function getSprintById(req: AuthRequest, res: Response<ApiResponse>
   }
 }
 
-/**
- * Create sprint
- */
 export async function createSprint(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const data: CreateSprintData = req.body
 
-    // Verify project exists
+
     const project = await prisma.project.findUnique({
       where: { id: data.projectId },
     })
@@ -179,7 +167,7 @@ export async function createSprint(req: AuthRequest, res: Response<ApiResponse>)
       })
     }
 
-    // Get the next sprint number for this project
+
     const lastSprint = await prisma.sprint.findFirst({
       where: { projectId: data.projectId },
       orderBy: { sprintNumber: 'desc' },
@@ -228,9 +216,6 @@ export async function createSprint(req: AuthRequest, res: Response<ApiResponse>)
   }
 }
 
-/**
- * Update sprint
- */
 export async function updateSprint(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
@@ -287,9 +272,6 @@ export async function updateSprint(req: AuthRequest, res: Response<ApiResponse>)
   }
 }
 
-/**
- * Delete sprint
- */
 export async function deleteSprint(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params

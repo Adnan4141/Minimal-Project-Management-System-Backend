@@ -1,16 +1,9 @@
-/**
- * Project Controller
- */
-
 import { Response } from 'express'
 import { AuthRequest, ApiResponse, CreateProjectData, UpdateProjectData } from '../types'
 import { prisma } from '../prisma/client'
 import { ProjectStatus } from '../../generated/prisma/enums.js'
 import { logger } from '../utils/logger'
 
-/**
- * Get all projects (with filters and pagination)
- */
 export async function getProjects(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const page = parseInt(req.query.page as string) || 1
@@ -31,7 +24,6 @@ export async function getProjects(req: AuthRequest, res: Response<ApiResponse>) 
       ]
     }
 
-    // If user is not Admin, only show projects they're involved in
     if (req.user?.role !== 'Admin') {
       where.OR = [
         { creatorId: req.user?.id },
@@ -92,7 +84,6 @@ export async function getProjects(req: AuthRequest, res: Response<ApiResponse>) 
       prisma.project.count({ where }),
     ])
 
-    // Calculate task stats for each project
     const projectsWithStats = await Promise.all(
       projects.map(async (project) => {
         const tasks = await prisma.task.findMany({
@@ -145,9 +136,6 @@ export async function getProjects(req: AuthRequest, res: Response<ApiResponse>) 
   }
 }
 
-/**
- * Get project by ID
- */
 export async function getProjectById(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
@@ -199,7 +187,6 @@ export async function getProjectById(req: AuthRequest, res: Response<ApiResponse
       })
     }
 
-    // Check access permissions
     if (req.user?.role !== 'Admin') {
       const hasAccess =
         project.creatorId === req.user?.id ||
@@ -218,7 +205,6 @@ export async function getProjectById(req: AuthRequest, res: Response<ApiResponse
       }
     }
 
-    // Calculate project stats
     const allTasks = project.sprints.flatMap((sprint) => sprint.tasks)
     const totalTasks = allTasks.length
     const completedTasks = allTasks.filter((t) => t.status === 'Done').length
@@ -247,9 +233,6 @@ export async function getProjectById(req: AuthRequest, res: Response<ApiResponse
   }
 }
 
-/**
- * Create project
- */
 export async function createProject(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const data: CreateProjectData = req.body
@@ -299,15 +282,11 @@ export async function createProject(req: AuthRequest, res: Response<ApiResponse>
   }
 }
 
-/**
- * Update project
- */
 export async function updateProject(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
     const data: Partial<UpdateProjectData> = req.body
 
-    // Check if project exists
     const existingProject = await prisma.project.findUnique({
       where: { id },
     })
@@ -319,7 +298,6 @@ export async function updateProject(req: AuthRequest, res: Response<ApiResponse>
       })
     }
 
-    // Check permissions (Admin, creator, or manager can update)
     if (
       req.user?.role !== 'Admin' &&
       existingProject.creatorId !== req.user?.id &&
@@ -377,9 +355,6 @@ export async function updateProject(req: AuthRequest, res: Response<ApiResponse>
   }
 }
 
-/**
- * Delete project
- */
 export async function deleteProject(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params
@@ -395,7 +370,6 @@ export async function deleteProject(req: AuthRequest, res: Response<ApiResponse>
       })
     }
 
-    // Only Admin or creator can delete
     if (req.user?.role !== 'Admin' && project.creatorId !== req.user?.id) {
       return res.status(403).json({
         success: false,
