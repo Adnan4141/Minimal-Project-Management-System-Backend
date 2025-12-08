@@ -19,11 +19,32 @@ initializeEmailService()
 const app = express()
 const httpServer = createServer(app)
 
-app.use(helmet())
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}))
 app.use(morgan('dev'))
 app.use(cors({
-  origin: config.cors.origin,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true)
+    
+    const allowedOrigins = [
+      'https://pms.myproject.mhadnan.com',
+      'http://localhost:3000',
+      'http://localhost:8000',
+      config.cors.origin
+    ].filter(Boolean) // Remove undefined values
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Authorization'],
 }))
 app.use(cookieParser())
 app.use(express.json())
