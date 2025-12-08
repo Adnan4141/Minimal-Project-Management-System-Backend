@@ -184,7 +184,7 @@ export async function refreshToken(req: AuthRequest, res: Response<ApiResponse>)
       },
     })
 
-    if (!user || !user.isActive) {
+    if (!user ) {
       return res.status(401).json({
         success: false,
         message: 'User not found or inactive',

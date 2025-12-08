@@ -90,9 +90,7 @@ export async function handleOAuth(
       },
     })
   } else {
-    if (!user.isActive) {
-      throw new Error('Your account is pending activation. Please contact an administrator to activate your account.')
-    }
+    
 
 
     if (userInfo.picture && userInfo.picture !== user.avatar) {
