@@ -408,6 +408,15 @@ export async function oauth(req: AuthRequest, res: Response<ApiResponse>) {
     })
   } catch (error: any) {
     logger.error('OAuth authentication failed', error)
+    
+    if (error.message && error.message.includes('pending activation')) {
+      return res.status(403).json({
+        success: false,
+        message: error.message || 'Your account is pending activation. Please contact an administrator to activate your account.',
+        requiresActivation: true,
+      })
+    }
+    
     return res.status(401).json({
       success: false,
       message: error.message || 'OAuth authentication failed',
