@@ -101,12 +101,7 @@ export async function login(req: AuthRequest, res: Response<ApiResponse>) {
       })
     }
 
-    if (!user.isActive) {
-      return res.status(403).json({
-        success: false,
-        message: 'Account is deactivated',
-      })
-    }
+  
 
     const isPasswordValid = await comparePassword(credentials.password, user.password)
 
@@ -409,13 +404,13 @@ export async function oauth(req: AuthRequest, res: Response<ApiResponse>) {
   } catch (error: any) {
     logger.error('OAuth authentication failed', error)
     
-    if (error.message && error.message.includes('pending activation')) {
-      return res.status(403).json({
-        success: false,
-        message: error.message || 'Your account is pending activation. Please contact an administrator to activate your account.',
-        requiresActivation: true,
-      })
-    }
+    // if (error.message && error.message.includes('pending activation')) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: error.message || 'Your account is pending activation. Please contact an administrator to activate your account.',
+    //     requiresActivation: true,
+    //   })
+    // }
     
     return res.status(401).json({
       success: false,

@@ -92,14 +92,7 @@ export async function googleOAuth(req: AuthRequest, res: Response<ApiResponse>) 
         })
       } else {
 
-        if (!user.isActive) {
-          return res.status(403).json({
-            success: false,
-            message: 'Your account is pending activation. Please contact an administrator to activate your account.',
-            requiresActivation: true,
-          })
-        }
-
+   
 
         if (picture && picture !== user.avatar) {
           user = await prisma.user.update({
@@ -261,14 +254,7 @@ export async function facebookOAuth(req: AuthRequest, res: Response<ApiResponse>
         })
       } else {
 
-        if (!user.isActive) {
-          return res.status(403).json({
-            success: false,
-            message: 'Your account is pending activation. Please contact an administrator to activate your account.',
-            requiresActivation: true,
-          })
-        }
-
+     
 
         const avatarUrl = picture?.data?.url
         if (avatarUrl && avatarUrl !== user.avatar) {
