@@ -19,33 +19,61 @@ initializeEmailService()
 const app = express()
 const httpServer = createServer(app)
 
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}))
-app.use(morgan('dev'))
+// CORS must be configured BEFORE helmet to avoid conflicts
+const allowedOrigins = [
+  'https://pms.myproject.mhadnan.com',
+  'http://localhost:3000',
+  'http://localhost:8000',
+  config.cors.origin
+].filter(Boolean) // Remove undefined values
+
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true)
-    
-    const allowedOrigins = [
-      'https://pms.myproject.mhadnan.com',
-      'http://localhost:3000',
-      'http://localhost:8000',
-      config.cors.origin
-    ].filter(Boolean) // Remove undefined values
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true)
-    } else {
-      callback(new Error('Not allowed by CORS'))
+    try {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) {
+        return callback(null, true)
+      }
+      
+      // Log incoming origin for debugging
+      logger.info(`CORS request from origin: ${origin}`)
+      
+      // Normalize origin (remove trailing slash, convert to lowercase for comparison)
+      const normalizedOrigin = origin.trim().toLowerCase().replace(/\/$/, '')
+      const normalizedAllowed = allowedOrigins.map(o => o?.toLowerCase().replace(/\/$/, ''))
+      
+      // Check if origin matches any allowed origin
+      if (normalizedAllowed.includes(normalizedOrigin)) {
+        logger.info(`CORS allowed for origin: ${origin}`)
+        callback(null, true)
+      } else {
+        // Log for debugging
+        logger.warn(`CORS blocked origin: ${origin}`)
+        logger.warn(`Normalized origin: ${normalizedOrigin}`)
+        logger.warn(`Allowed origins: ${allowedOrigins.join(', ')}`)
+        logger.warn(`Normalized allowed: ${normalizedAllowed.join(', ')}`)
+        callback(new Error('Not allowed by CORS'))
+      }
+    } catch (error: any) {
+      logger.error('CORS origin check error:', error)
+      callback(error)
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   exposedHeaders: ['Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
 }))
+
+// Configure Helmet to not interfere with CORS
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false,
+}))
+
+app.use(morgan('dev'))
 app.use(cookieParser())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
@@ -63,11 +91,39 @@ app.use(config.upload.publicUrl || '/uploads', express.static(path.join(__dirnam
 const apiRouter = express.Router()
 mountRoutes(apiRouter)
 
+
+apiRouter.get('/', (req, res) => {
+  res.json({ message: 'Server is working', version: '1.0.0' })
+})
+
+
+
+
 const apiPrefix = config.server.apiPrefix || '/api'
+
+// Handle OPTIONS preflight requests explicitly
+app.options('*', cors({
+  origin: function (origin, callback) {
+    if (!origin) {
+      return callback(null, true)
+    }
+    const normalizedOrigin = origin.trim().toLowerCase().replace(/\/$/, '')
+    const normalizedAllowed = allowedOrigins.map(o => o?.toLowerCase().replace(/\/$/, ''))
+    if (normalizedAllowed.includes(normalizedOrigin)) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+}))
+
 app.use(apiPrefix, apiRouter)
 
 app.get(apiPrefix, (req, res) => {
-  res.json({ message: 'API Server working', version: '1.0.0' })
+  res.json({ message: 'API Server working ', version: '1.0.0' })
 })
 
 app.use(notFoundHandler)
