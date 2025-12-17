@@ -154,6 +154,87 @@ export async function getTasks(req: AuthRequest, res: Response<ApiResponse>) {
   }
 }
 
+export async function submitAssignedTask(req: AuthRequest, res: Response<ApiResponse>) {
+  try {
+    const { id } = req.params
+    const data: Partial<UpdateTaskData> = req.body
+
+    const existingTask = await prisma.task.findUnique({
+      where: { id },
+    })
+
+    if (!existingTask) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found',
+      })
+    }
+
+  
+    
+
+
+ 
+
+    const updateData: any = {}
+    if (data.estimate !== undefined) updateData.estimate = data.estimate ? parseFloat(data.estimate.toString()) : null
+    if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null
+
+  
+    if (data.status && data.status !== existingTask.status) {
+
+
+     updateData.status == "Review";
+
+      await prisma.activityLog.create({
+        data: {
+          type: 'status_changed',
+          description: `Task status changed from ${existingTask.status} to ${data.status}`,
+          taskId: id,
+          userId: req.user!.id,
+          metadata: {
+            oldStatus: existingTask.status,
+            newStatus: data.status,
+          },
+        },
+      })
+    }
+
+    const task = await prisma.task.update({
+      where: { id },
+      data: updateData,
+      include: {
+        assignees: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+
+  
+
+    return res.json({
+      success: true,
+      message: 'Task updated successfully',
+      data: task,
+    })
+  } catch (error: any) {
+    logger.error('Failed to update task', error)
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update task',
+    })
+  }
+}
+
 export async function getTaskById(req: AuthRequest, res: Response<ApiResponse>) {
   try {
     const { id } = req.params

@@ -53,6 +53,7 @@ const corsOptions = {
   exposedHeaders: ['Authorization'],
   preflightContinue: false,
   optionsSuccessStatus: 204,
+  maxAge: 86400, // 24 hours - cache preflight requests
 }
 
 

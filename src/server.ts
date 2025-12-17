@@ -18,6 +18,8 @@ initializeEmailService()
 const app = express()
 const httpServer = createServer(app)
 
+// Handle CORS preflight requests first
+app.options('*', corsOptionsHandler)
 app.use(corsMiddleware)
 
 app.use(morgan('dev'))
@@ -48,11 +50,7 @@ apiRouter.get('/', (req, res) => {
 
 mountRoutes(apiRouter)
 
-
-
 const apiPrefix = config.server.apiPrefix || '/api'
-
-app.options('*', corsOptionsHandler)
 
 app.use(apiPrefix, apiRouter)
 
